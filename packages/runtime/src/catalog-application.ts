@@ -10,6 +10,7 @@ import {
 } from "@curator/shared";
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
+import { requireIdle } from "./storage/execution-state.js";
 
 const FLOW_COLUMNS =
   "id, workspace_id, title, description, status, created_at, updated_at, created_by, updated_by";
@@ -52,6 +53,7 @@ export class CatalogApplication {
    */
   add(workspaceId: string, draft: UserFlowDraft): UserFlow {
     return inTransaction(this.#database, () => {
+      requireIdle(this.#database, workspaceId);
       this.#requireWorkspace(workspaceId);
       const now = new Date().toISOString();
       const flow: UserFlow = {
@@ -92,6 +94,7 @@ export class CatalogApplication {
    */
   save(workspaceId: string, flowId: string, draft: UserFlowDraft): UserFlow {
     return inTransaction(this.#database, () => {
+      requireIdle(this.#database, workspaceId);
       const flow = this.#requireFlow(workspaceId, flowId);
       const now = new Date().toISOString();
       this.#database
@@ -114,6 +117,7 @@ export class CatalogApplication {
   /** The user's own judgment that an Outdated flow describes current behavior. */
   reactivate(workspaceId: string, flowId: string): UserFlow {
     return inTransaction(this.#database, () => {
+      requireIdle(this.#database, workspaceId);
       const flow = this.#requireFlow(workspaceId, flowId);
       const now = new Date().toISOString();
       this.#database
@@ -128,6 +132,7 @@ export class CatalogApplication {
   /** Permanent. The flow and its citations leave the store together. */
   remove(workspaceId: string, flowId: string): string {
     return inTransaction(this.#database, () => {
+      requireIdle(this.#database, workspaceId);
       this.#requireFlow(workspaceId, flowId);
       this.#database.prepare("DELETE FROM user_flows WHERE id = ?").run(flowId);
       return flowId;

@@ -5,8 +5,9 @@ source-grounded User Flows from its Repository. It is a local macOS application:
 a Tauri desktop host, a React interface, and one supervised Node runtime that
 owns application logic and an app-private SQLite store.
 
-This checkout currently implements opening and reopening a Workspace. Manual
-curation, the Agent Chat, and Scans arrive in later work.
+This checkout implements opening and reopening Workspaces, manual User Flow
+curation, and persistent Agent Chat with OpenRouter streaming, Stop, and Retry.
+Repository tools, agent catalog changes, compaction, and Scans arrive in later work.
 
 ## Prerequisites
 
@@ -39,10 +40,30 @@ cp .env.example .env
 ```
 
 Fill in `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in the checkout root `.env`.
-That file is where OpenRouter Configuration will be read from when hosted agent
-work arrives — only from there, never from the analyzed Repository or a tool's
-working directory. No code reads it yet, and stored Workspaces stay available
-whether or not it is filled in.
+The supervised runtime reads only that file at startup, using the checkout root
+passed by Tauri; it never reads configuration from the analyzed Repository, a
+tool's working directory, or inherited OpenRouter environment variables. Both
+values are required, with no model default. Restart Curator after changing them.
+Missing configuration blocks hosted work while stored data and manual curation
+remain available. Credentials stay inside the Node runtime.
+
+Agent Chat answers from the current catalog and prior conversation. It does not
+yet inspect Repository files or mutate User Flows. Each submitted message or
+Retry starts a new Agent Execution, and different Workspaces can run independently.
+Manual mutations and new messages are blocked in a busy Workspace; inspection
+and Stop remain available. Stop aborts the local request and waits for settlement;
+it does not guarantee provider-side cancellation or a final cost. Actual request
+failures remain in the conversation with the provider's error, without automatic
+retries or model fallbacks.
+
+The application owns an OpenRouter adapter using LangChain's `BaseChatModel`
+streaming interface. It stores complete provider payloads before normalization,
+assembles native continuation messages separately from display text, and records
+provider usage snapshots once per request. Returned reasoning and complete
+payloads are inspectable in Agent Chat. This follows the provider's documented
+[streaming contract](https://openrouter.ai/docs/api_reference/streaming) and
+[reasoning continuation format](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens);
+live provider fidelity probes remain deferred.
 
 ## Commands
 
@@ -63,7 +84,7 @@ successfully is not evidence that the behavioral contracts hold.
 
 ## Where data lives
 
-Workspaces, and later their User Flows, Agent Chat, and Scan history, are stored
+Workspaces, their User Flows, Agent Chat, and Agent Executions are stored
 in one app-private SQLite database at
 
 ```
@@ -78,6 +99,14 @@ The schema is versioned and there is no migration, backup, downgrade, or
 recovery path. A store written by an unsupported schema version, or one that
 cannot be read, is reported with its location and left exactly as it is; Curator
 never resets it for you.
+
+This build uses schema version **3**; earlier version 1/2 stores are unsupported
+and remain untouched. Agent Chat and provider payloads are retained indefinitely
+in this unencrypted app-private store and may contain source content. Current
+catalog state is independent of historical mentions. On restart, unfinished
+Running executions become Interrupted; retained partial replies remain marked
+unfinished, and nothing automatically resumes. Panel sizes, selection, and unsent
+chat drafts survive session navigation but reset when the application restarts.
 
 ## Layout
 

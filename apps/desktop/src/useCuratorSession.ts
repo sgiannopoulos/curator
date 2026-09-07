@@ -7,7 +7,9 @@ import {
   type UserFlow,
   type UserFlowDraft,
   type Workspace,
+  type ChatSnapshot,
 } from "@curator/shared";
+import { useAgentChat } from "./useAgentChat";
 import {
   asCuratorError,
   chooseRepositoryDirectory,
@@ -40,7 +42,18 @@ export interface CuratorSession {
   saveFlow: (flowId: string, draft: UserFlowDraft) => Promise<boolean>;
   reactivateFlow: (flowId: string) => Promise<boolean>;
   removeFlow: (flowId: string) => Promise<boolean>;
+  chat: ChatSnapshot | null;
+  chatDraft: string;
+  setChatDraft: (draft: string) => void;
+  sendMessage: () => void;
+  stopExecution: (executionId: string) => void;
+  retryExecution: (executionId: string) => void;
+  panels: PanelState;
+  setPanels: (update: Partial<PanelState>) => void;
 }
+
+interface PanelState { flowsMinimized: boolean; chatMinimized: boolean; chatHeight: number }
+const DEFAULT_PANELS: PanelState = { flowsMinimized: false, chatMinimized: false, chatHeight: 152 };
 
 export function useCuratorSession(): CuratorSession {
   const [status, setStatus] = useState<RuntimeStatus>({ state: "starting" });
@@ -49,6 +62,8 @@ export function useCuratorSession(): CuratorSession {
   const [flows, setFlows] = useState<UserFlow[]>([]);
   const [problem, setProblem] = useState<ApplicationError | null>(null);
   const [inFlight, setInFlight] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [panels, setPanels] = useState<Record<string, PanelState>>({});
 
   // Selection follows the user around the session but is not persisted: it is
   // immediate context, not stored work, so a restart starts clean.
@@ -136,6 +151,7 @@ export function useCuratorSession(): CuratorSession {
 
   const mismatch = useMemo(() => describeContractMismatch(status), [status]);
   const ready = status.state === "ready" && mismatch === null;
+  const agent = useAgentChat(openedWorkspaceId, ready, catchUp);
 
   useEffect(() => {
     if (!ready) {
@@ -294,8 +310,8 @@ export function useCuratorSession(): CuratorSession {
 
   return {
     ready,
-    working: inFlight > 0,
-    notice: problem ?? mismatch ?? (status.state === "unavailable" ? status.error : null),
+    working: inFlight > 0 || agent.chat?.executions.some((execution) => execution.status === "running") === true,
+    notice: problem ?? mismatch ?? (status.state === "unavailable" ? status.error : null) ?? agent.error,
     dismissNotice: problem ? () => setProblem(null) : undefined,
     workspaces,
     workspace,
@@ -309,6 +325,36 @@ export function useCuratorSession(): CuratorSession {
     saveFlow,
     reactivateFlow,
     removeFlow,
+    chat: agent.chat,
+    chatDraft: openedWorkspaceId ? drafts[openedWorkspaceId] ?? "" : "",
+    setChatDraft: (draft) => {
+      if (openedWorkspaceId) setDrafts((current) => ({ ...current, [openedWorkspaceId]: draft }));
+    },
+    sendMessage: () => {
+      if (!openedWorkspaceId) return;
+      const workspaceId = openedWorkspaceId;
+      const text = drafts[workspaceId] ?? "";
+      void run(async () => {
+        await sendCommand("chat.send", { workspaceId, text });
+        setDrafts((current) => current[workspaceId] === text ? { ...current, [workspaceId]: "" } : current);
+      });
+    },
+    stopExecution: (executionId) => {
+      if (openedWorkspaceId) void run(async () => {
+        await sendCommand("chat.stop", { workspaceId: openedWorkspaceId, executionId });
+      });
+    },
+    retryExecution: (executionId) => {
+      if (openedWorkspaceId) void run(async () => {
+        await sendCommand("chat.retry", { workspaceId: openedWorkspaceId, executionId });
+      });
+    },
+    panels: openedWorkspaceId ? panels[openedWorkspaceId] ?? DEFAULT_PANELS : DEFAULT_PANELS,
+    setPanels: (update) => {
+      if (openedWorkspaceId) setPanels((current) => ({
+        ...current, [openedWorkspaceId]: { ...(current[openedWorkspaceId] ?? DEFAULT_PANELS), ...update },
+      }));
+    },
   };
 }
 

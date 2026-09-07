@@ -16,20 +16,29 @@ export function FlowList({
   disabled,
   onSelect,
   onAdd,
+  minimized,
+  onToggle,
 }: {
   flows: UserFlow[];
   selectedFlowId: string | null;
   disabled: boolean;
   onSelect: (flowId: string) => void;
   onAdd: () => void;
+  minimized: boolean;
+  onToggle: () => void;
 }) {
   return (
-    <section className="catalog">
+    <section className={`catalog ${minimized ? "minimized" : ""}`}>
       <div className="row catalog-meta">
         <span className="label grow">
           {flows.length === 1 ? "1 User Flow" : `${flows.length} User Flows`}
         </span>
+        <button className="plain icon-button" onClick={onToggle} aria-expanded={!minimized}
+          aria-controls="flow-list-content" aria-label={minimized ? "Restore User Flows" : "Minimize User Flows"}>
+          {minimized ? "+" : "−"}
+        </button>
       </div>
+      <div className="catalog-content" id="flow-list-content" hidden={minimized}>
       <div className="catalog-list">
         {flows.length === 0 && (
           <p className="preview-note">No User Flows yet. Add one to get started.</p>
@@ -64,6 +73,7 @@ export function FlowList({
       <button className="add-flow" onClick={onAdd} disabled={disabled}>
         + Add User Flow
       </button>
+      </div>
     </section>
   );
 }

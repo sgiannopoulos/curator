@@ -24,6 +24,10 @@ Each ticket is a separate local issue marked `ready-for-agent`, with its own end
 
 ## Execution order
 
+Implementation progress: tickets 01 and 02 are implemented in commits `a17d36d`
+and `1fb618a`. Their original acceptance checklists predate those commits. Ticket
+03 is now implemented and resolved. Ticket 04 is the next available slice.
+
 Work an uncompleted ticket only when all its blockers are complete; among available tickets, prefer the lowest number. Initially, [01: Open and reopen a Workspace](issues/01-open-and-reopen-a-workspace.md) is the only unblocked ticket.
 
 The approved revision moves Agent Chat into position 03 and unavailable-Repository/Relink handling into position 12. Relink depends only on ticket 02: its later number expresses lower priority, not a new dependency on agent or Scan work. Workspace deletion remains ticket 13 and depends on the completed Scan-history path.
@@ -38,4 +42,3 @@ Branches can proceed independently when their blockers are complete: compaction 
 - Diagnostics and verification are deferred. Acceptance criteria describe intended behavior, not an added verification suite or mandatory native/provider probe gate. Normal compilation remains part of the local build contract, and compilation alone is not behavioral proof.
 - Repository safety and semantic authorization retain the agreed prompt-governed limits. Do not revive superseded preflight, retry, fallback, confinement, spending-control, or source-navigation requirements from older research.
 - This publication creates implementation tickets only. It does not start application implementation, run paid model requests, change installed tools, or close or modify the source spec, map, or decision tickets.
-

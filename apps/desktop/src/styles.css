@@ -423,3 +423,30 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 @media (max-width: 900px) {
   .inspector { display: none; }
 }
+
+/* Independently collapsible catalog and persistent Agent Chat. */
+.catalog.minimized, .agent-chat.minimized { flex: 0 0 auto; }
+.catalog-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.catalog-content[hidden], .chat-content[hidden] { display: none; }
+.catalog.minimized .catalog-meta { padding-bottom: 10px; }
+.agent-chat { display: flex; flex-direction: column; min-height: 0; flex: 0 1 152px; border-top: 1px solid var(--line); }
+.agent-chat.fill { flex: 1; }
+.chat-heading { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 18px; min-height: 36px; }
+.chat-content { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.chat-history { overflow: auto; padding: 4px 14px 8px 18px; min-height: 0; flex: 1; overflow-wrap: anywhere; }
+.chat-entry { margin: 10px 0; font-size: 12px; }
+.chat-entry p { white-space: pre-wrap; margin: 5px 0; }
+.chat-entry.user { padding: 9px 10px; border-radius: 8px; background: #fff8e9; }
+.chat-lifecycle { font-size: 11px; color: var(--muted); margin: 8px 0; white-space: pre-wrap; }
+.chat-outcome { font-size: 11px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.chat-history details { margin: 7px 0; }
+.chat-history summary { cursor: pointer; }
+.chat-history pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.6 var(--mono); padding: 8px 0; }
+.chat-history dd { margin: 0 0 6px; }
+.chat-history dt { color: var(--muted); }
+.chat-prerequisite { font-size: 11px; margin: 8px 0; }
+.chat-composer { display: flex; align-items: flex-end; gap: 6px; padding: 6px 10px 10px; }
+.chat-composer textarea { flex: 1; min-width: 0; resize: none; font-size: 12px; padding: 7px; }
+.chat-composer button { padding: 8px; font-size: 11px; }
+.chat-separator { height: 6px; flex: none; cursor: ns-resize; touch-action: none; background: var(--line); }
+.chat-separator:hover, .chat-separator:focus-visible { background: var(--sage); }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentExecutionSchema, chatSnapshotSchema } from "./chat.js";
 import { applicationErrorSchema } from "./errors.js";
 import { userFlowDraftSchema, userFlowSchema } from "./user-flow.js";
 import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
@@ -9,7 +10,7 @@ import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
  * correlated request and publishes ordered events describing new state. Both
  * sides validate every message with the schemas below.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 const emptyPayloadSchema = z.object({}).strict();
 
@@ -62,6 +63,26 @@ export type RuntimeDescription = z.infer<typeof runtimeDescriptionSchema>;
 
 /** Every command the frontend may send, with the payload and result contract. */
 export const commandContracts = {
+  "chat.read": {
+    payload: z.object({ workspaceId: z.string().min(1) }).strict(),
+    result: chatSnapshotSchema,
+  },
+  "chat.send": {
+    payload: z.object({ workspaceId: z.string().min(1), text: z.string().trim().min(1) }).strict(),
+    result: agentExecutionSchema,
+  },
+  "chat.stop": {
+    payload: z.object({ workspaceId: z.string().min(1), executionId: z.string().min(1) }).strict(),
+    result: agentExecutionSchema,
+  },
+  "chat.retry": {
+    payload: z.object({ workspaceId: z.string().min(1), executionId: z.string().min(1) }).strict(),
+    result: agentExecutionSchema,
+  },
+  "chat.provider": {
+    payload: z.object({ workspaceId: z.string().min(1), executionId: z.string().min(1) }).strict(),
+    result: z.object({ frames: z.array(z.json()) }),
+  },
   "workspace.list": {
     payload: emptyPayloadSchema,
     result: z.object({ workspaces: z.array(workspaceSchema) }),
@@ -131,6 +152,7 @@ export function isCommandName(value: string): value is CommandName {
  * assuming it observed every event.
  */
 export const eventContracts = {
+  "chat.changed": z.object({ workspaceId: z.string().min(1) }),
   "runtime.ready": runtimeDescriptionSchema,
   "runtime.failed": z.object({ error: applicationErrorSchema }),
   "workspaces.changed": z.object({ workspaces: z.array(workspaceSchema) }),

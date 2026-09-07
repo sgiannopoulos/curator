@@ -3,6 +3,7 @@ import { statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { CuratorError, type Workspace, type WorkspaceOpen } from "@curator/shared";
 import { CatalogApplication } from "./catalog-application.js";
+import { ChatApplication } from "./chat-application.js";
 import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
 import { describeCause } from "./logging.js";
 import { readText, type StoredRow } from "./storage/rows.js";
@@ -26,10 +27,12 @@ export class WorkspaceApplication {
    * manual mutation and every accepted agent result goes through it.
    */
   readonly catalog: CatalogApplication;
+  readonly chat: ChatApplication;
 
   constructor(database: DatabaseSync) {
     this.#database = database;
     this.catalog = new CatalogApplication(database);
+    this.chat = new ChatApplication(database);
   }
 
   list(): Workspace[] {

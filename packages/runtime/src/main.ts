@@ -14,6 +14,9 @@ import { openDatabase } from "./storage/database.js";
 import { SUPPORTED_SCHEMA_VERSION } from "./storage/schema.js";
 import { Transport } from "./transport.js";
 import { WorkspaceApplication } from "./workspace-application.js";
+import { loadConfiguration } from "./configuration.js";
+import { ExecutionCoordinator } from "./execution-coordinator.js";
+import { z } from "zod";
 
 /**
  * The supervised runtime. It owns every read and write of the application's
@@ -25,6 +28,7 @@ import { WorkspaceApplication } from "./workspace-application.js";
  */
 function main(): void {
   const dataDirectory = requireOption("--data-dir");
+  const settings = loadConfiguration(requireOption("--app-root"));
   const databasePath = join(dataDirectory, "curator.db");
   const transport = new Transport();
 
@@ -41,6 +45,9 @@ function main(): void {
   }
 
   const workspaces = new WorkspaceApplication(database);
+  const executions = new ExecutionCoordinator(workspaces, settings, (workspaceId) => {
+    transport.publish("chat.changed", { workspaceId });
+  });
   const description: RuntimeDescription = {
     protocolVersion: PROTOCOL_VERSION,
     nodeVersion: process.version,
@@ -48,6 +55,13 @@ function main(): void {
   };
 
   transport.handle("workspace.list", () => ({ workspaces: workspaces.list() }));
+  transport.handle("chat.read", ({ workspaceId }) => executions.read(workspaceId));
+  transport.handle("chat.send", ({ workspaceId, text }) => executions.start(workspaceId, text));
+  transport.handle("chat.stop", ({ workspaceId, executionId }) => executions.stop(workspaceId, executionId));
+  transport.handle("chat.retry", ({ workspaceId, executionId }) => executions.retry(workspaceId, executionId));
+  transport.handle("chat.provider", ({ workspaceId, executionId }) => ({
+    frames: z.array(z.json()).parse(workspaces.chat.frames(workspaceId, executionId)),
+  }));
   transport.handle("workspace.open", ({ repositoryLocator }) => {
     const opened = workspaces.open(repositoryLocator);
     transport.publish("workspaces.changed", { workspaces: workspaces.list() });
@@ -92,9 +106,15 @@ function main(): void {
   });
 
   const openDatabaseHandle = database;
-  transport.listen(() => shutdown(openDatabaseHandle));
+  let stopping = false;
+  const stop = (): void => {
+    if (stopping) return;
+    stopping = true;
+    void executions.shutdown().finally(() => shutdown(openDatabaseHandle));
+  };
+  transport.listen(stop);
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
-    process.on(signal, () => shutdown(openDatabaseHandle));
+    process.on(signal, stop);
   }
 
   log(`ready on Node ${process.version} with ${databasePath}`);

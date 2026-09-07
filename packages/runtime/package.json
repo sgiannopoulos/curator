@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@curator/shared": "workspace:*",
+    "@langchain/core": "1.2.9",
+    "eventsource-parser": "4.1.0",
     "zod": "4.5.4"
   },
   "devDependencies": {

@@ -5,7 +5,7 @@
  * untouched. A change to these tables raises the version, and existing stores
  * then report as unsupported rather than being upgraded in place.
  */
-export const SUPPORTED_SCHEMA_VERSION = 2;
+export const SUPPORTED_SCHEMA_VERSION = 3;
 
 export const SCHEMA_STATEMENTS = `
 CREATE TABLE workspaces (
@@ -48,4 +48,28 @@ CREATE TABLE source_citations (
 
 CREATE INDEX source_citations_flow
   ON source_citations (user_flow_id, position);
+
+CREATE TABLE agent_executions (
+  id TEXT PRIMARY KEY NOT NULL,
+  workspace_id TEXT NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  data TEXT NOT NULL
+) STRICT;
+CREATE UNIQUE INDEX one_running_execution
+  ON agent_executions (workspace_id) WHERE status = 'running';
+
+CREATE TABLE chat_entries (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id TEXT NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
+  execution_id TEXT NOT NULL REFERENCES agent_executions (id) ON DELETE CASCADE,
+  data TEXT NOT NULL
+) STRICT;
+CREATE INDEX chat_workspace ON chat_entries (workspace_id, sequence);
+
+CREATE TABLE provider_frames (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  execution_id TEXT NOT NULL REFERENCES agent_executions (id) ON DELETE CASCADE,
+  data TEXT NOT NULL
+) STRICT;
+CREATE INDEX provider_execution ON provider_frames (execution_id, sequence);
 `;

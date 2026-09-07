@@ -321,6 +321,8 @@ fn spawn_node(data_directory: &Path) -> Result<Child, ApplicationError> {
         .arg(&entry)
         .arg("--data-dir")
         .arg(data_directory)
+        .arg("--app-root")
+        .arg(checkout_root())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

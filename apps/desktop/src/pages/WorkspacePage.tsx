@@ -7,6 +7,7 @@ import { FlowList } from "../components/FlowList";
 import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
 import { describeMoment } from "../format";
 import type { CuratorSession } from "../useCuratorSession";
+import { AgentChat } from "../components/AgentChat";
 
 /**
  * A Workspace and its catalog. Everything here works from stored data alone:
@@ -19,7 +20,9 @@ export function WorkspacePage({
   workspace: Workspace;
   session: CuratorSession;
 }) {
-  const { selectedFlow, working } = session;
+  const { selectedFlow } = session;
+  const working = session.working || !session.ready;
+  const { panels } = session;
   const [tab, setTab] = useState<FlowTab>("description");
   const [showingOptions, setShowingOptions] = useState(false);
   const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
@@ -82,7 +85,31 @@ export function WorkspacePage({
           disabled={working}
           onSelect={session.selectFlow}
           onAdd={() => setEditing("add")}
+          minimized={panels.flowsMinimized}
+          onToggle={() => session.setPanels({ flowsMinimized: !panels.flowsMinimized })}
         />
+        {!panels.chatMinimized && !panels.flowsMinimized && (
+          <div className="chat-separator" role="separator" tabIndex={0}
+            aria-label="Agent Chat height" aria-orientation="horizontal" aria-valuemin={96}
+            aria-valuemax={Math.max(96, window.innerHeight - 200)} aria-valuenow={panels.chatHeight}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+              event.preventDefault();
+              session.setPanels({ chatHeight: Math.max(96, Math.min(window.innerHeight - 200,
+                panels.chatHeight + (event.key === "ArrowUp" ? 24 : -24))) });
+            }}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const sidebar = event.currentTarget.parentElement?.getBoundingClientRect();
+              if (sidebar) session.setPanels({ chatHeight: Math.max(96, Math.min(sidebar.height - 160, sidebar.bottom - event.clientY)) });
+            }}
+            onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+          />
+        )}
+        <AgentChat session={session} />
       </aside>
 
       <section className="main">
@@ -175,6 +202,10 @@ export function WorkspacePage({
           Choosing this same folder again reopens this Workspace rather than starting
           another one. Its catalog is stored in Curator's own data, outside the
           Repository.
+        </p>
+        <p className="small muted" style={{ marginTop: 12 }}>
+          Agent Chat and provider responses are retained in app-private, unencrypted
+          storage and may contain source content. History is kept until Workspace deletion.
         </p>
         <p style={{ marginTop: 18 }}>
           <button
