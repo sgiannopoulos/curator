@@ -131,7 +131,7 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 
 /* Start page */
 .start-body { display: flex; flex: 1; min-height: 0; }
-.welcome { flex: 1; min-width: 0; padding: 22vh 60px 0; }
+.welcome { flex: 1; min-width: 0; padding: 190px 60px 0; }
 .welcome-copy { max-width: 470px; margin: 0 auto; }
 .welcome h1 {
   font-size: 30px;
