@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #F2EEE2; font-family: "Instrument Sans", Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #9A6A3C; }
+  a:hover { color: #7A5127; }
+  ::selection { background: var(--cu-sage, #CCD5AE); }
+</style>
+</helmet>
+
+<div style="display: flex; justify-content: center; padding: 32px; width: max-content;">
+  <div style="width: 1240px; height: 846px; flex: none; position: relative; display: flex; flex-direction: column; background: var(--cu-cream, #FFFDF4); border: 1px solid #E3D4B4; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 44px rgba(90, 70, 40, 0.13);">
+
+    <div style="height: 38px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 15px; border-bottom: 1px solid #EFE5CE; background: var(--cu-sand, #FFFDF7);">
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: #DCC9A4;"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: #E4D5B6;"></div>
+      <div style="width: 11px; height: 11px; border-radius: 50%; background: #E4D5B6;"></div>
+      <div style="flex: 1;"></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #A08E70;">Curator</div>
+      <div style="flex: 1;"></div>
+    </div>
+
+    <div style="flex: 1; min-height: 0; display: flex;">
+
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 190px 90px 0;">
+
+        <div style="width: 100%; max-width: 470px;">
+          <div style="font-size: 30px; line-height: 1.2; font-weight: 600; color: var(--cu-ink, #342D20); text-wrap: pretty;">Test Anything with Curator</div>
+          <div style="font-size: 14px; line-height: 1.6; color: #6B5C44; margin-top: 12px; text-wrap: pretty;">Open a folder or clone a repository to get started</div>
+
+          <div style="display: flex; gap: 9px; margin-top: 26px; justify-content: center;">
+            <button style="border: none; background: #4A5B33; color: #F7F4E2; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 600; padding: 10px 17px; border-radius: 8px; cursor: pointer;" style-hover="background: #3C4A29;">Choose a folder…</button>
+            <button style="border: 1px solid #DFCCA5; background: transparent; color: #6B5C44; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 500; padding: 10px 15px; border-radius: 8px; cursor: pointer;" style-hover="border: 1px solid var(--cu-tan, #D4A373); color: var(--cu-ink, #342D20);">Clone from Git…</button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div style="width: 372px; flex: none; border-left: 1px solid #EFE5CE; background: var(--cu-sand, #FFFDF7); display: flex; flex-direction: column;">
+
+        <div style="padding: 18px 22px 10px; display: flex; align-items: center; gap: 7px;">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #7E6E54;">Recent</div>
+          <div style="flex: 1; height: 1px; background: #EFE0C4;"></div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #A08E70;">{{ recentCount }}</div>
+        </div>
+
+        <sc-if value="{{ hasRecents }}" hint-placeholder-val="{{ true }}">
+          <div style="flex: 1; min-height: 0; overflow-y: auto;">
+            <sc-for list="{{ recents }}" as="p" hint-placeholder-count="4">
+              <div style="padding: 11px 22px; border-bottom: 1px solid #F3EAD4; cursor: pointer;" style-hover="background: #F5EDD9;">
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <div style="flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--cu-ink, #342D20); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.name }}</div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #A08E70; flex: none;">{{ p.opened }}</div>
+                </div>
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #96866A; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.path }}</div>
+                <div style="display: flex; align-items: center; gap: 9px; margin-top: 7px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #7E6E54;">
+                  <span style="display: inline-flex; align-items: center; gap: 5px;">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--cu-pass, #6E8C52);"></span>{{ p.passing }} passing
+                  </span>
+                  <sc-if value="{{ p.hasFailing }}" hint-placeholder-val="{{ true }}">
+                    <span style="display: inline-flex; align-items: center; gap: 5px; color: #9A4525;">
+                      <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--cu-fail, #B4562F);"></span>{{ p.failing }} failing
+                    </span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ noRecents }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 40px; text-align: center; font-size: 12.5px; line-height: 1.6; color: #96866A;">Projects you open show up here with their last run.</div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1304,&quot;height&quot;:910},&quot;cream&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#FFFEFA&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#FFFDF4&quot;,&quot;#FEFAE0&quot;,&quot;#FFFEFA&quot;,&quot;#F7F2E2&quot;]},&quot;sand&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#FFFDF7&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#FFFDF7&quot;,&quot;#FFFBF0&quot;,&quot;#FDF8E8&quot;,&quot;#FAEDCD&quot;]},&quot;sage&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#E9EDC9&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#E9EDC9&quot;,&quot;#CCD5AE&quot;,&quot;#F0F2DA&quot;]},&quot;tan&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#D4A373&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#D4A373&quot;,&quot;#C08C57&quot;,&quot;#E0B489&quot;]},&quot;pass&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6E8C52&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Status&quot;,&quot;options&quot;:[&quot;#6E8C52&quot;,&quot;#4A5B33&quot;,&quot;#83A162&quot;]},&quot;fail&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#B4562F&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Status&quot;,&quot;options&quot;:[&quot;#B4562F&quot;,&quot;#9A4525&quot;,&quot;#C46B44&quot;]},&quot;ink&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#342D20&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#342D20&quot;,&quot;#3B3325&quot;,&quot;#2A2418&quot;]},&quot;rail&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#38382B&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Palette&quot;,&quot;options&quot;:[&quot;#38382B&quot;,&quot;#4A4A3A&quot;]},&quot;hasRecents&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;State&quot;}}">
+class Component extends DCLogic {
+  static TOKENS = {
+    sage: '#E9EDC9', palesage: '#E9EDC9', cream: '#FFFEFA', sand: '#FFFDF7',
+    tan: '#D4A373', pass: '#6E8C52', fail: '#B4562F', rail: '#38382B', ink: '#342D20'
+  };
+  static RECENTS = [
+    { name: 'harbor-web', path: '~/dev/harbor-web', opened: '2h ago', passing: 5, failing: 2 },
+    { name: 'atlas-dashboard', path: '~/dev/atlas-dashboard', opened: 'yesterday', passing: 11, failing: 0 },
+    { name: 'ledger-admin', path: '~/work/ledger/apps/admin', opened: 'Tue', passing: 8, failing: 1 },
+    { name: 'postcard', path: '~/side/postcard', opened: 'Aug 28', passing: 3, failing: 0 }
+  ];
+  syncColors() {
+    const root = document.documentElement.style;
+    Object.keys(Component.TOKENS).forEach(k => {
+      root.setProperty('--cu-' + k, this.props[k] || Component.TOKENS[k]);
+    });
+  }
+  componentDidMount() { this.syncColors(); }
+  componentDidUpdate() { this.syncColors(); }
+  renderVals() {
+    const has = this.props.hasRecents ?? true;
+    const recents = Component.RECENTS.map(p => Object.assign({}, p, { hasFailing: p.failing > 0 }));
+    return {
+      hasRecents: has,
+      noRecents: !has,
+      recents,
+      recentCount: has ? recents.length : 0
+    };
+  }
+}
+
+</script>
+</body>
+</html>

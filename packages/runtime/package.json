@@ -1,0 +1,19 @@
+{
+  "name": "@curator/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Node runtime the desktop host supervises: application logic and the application-owned SQLite store.",
+  "main": "dist/main.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@curator/shared": "workspace:*",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}

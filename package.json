@@ -1,0 +1,16 @@
+{
+  "name": "curator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Curator derives and curates source-grounded User Flows from a local Repository.",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": "24.20.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @curator/shared run compile && pnpm --filter @curator/runtime run compile && pnpm --filter @curator/desktop run dev",
+    "build": "pnpm --filter @curator/shared run compile && pnpm --filter @curator/runtime run compile && pnpm --filter @curator/desktop run build",
+    "start": "pnpm --filter @curator/desktop run start"
+  }
+}

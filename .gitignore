@@ -1,0 +1,7 @@
+# Application configuration holds the OpenRouter credential and is never committed.
+.env
+
+node_modules/
+dist/
+target/
+.DS_Store

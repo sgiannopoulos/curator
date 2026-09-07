@@ -1,0 +1,29 @@
+{
+  "name": "@curator/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The Curator desktop host: the React interface and the Tauri process that supervises the Node runtime.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "start": "./src-tauri/target/release/bundle/macos/Curator.app/Contents/MacOS/Curator",
+    "vite:dev": "vite",
+    "vite:build": "tsc -p tsconfig.json --noEmit && vite build"
+  },
+  "dependencies": {
+    "@curator/shared": "workspace:*",
+    "@tauri-apps/api": "2.11.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}
