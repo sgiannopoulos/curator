@@ -7,6 +7,10 @@ import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { createParser } from "eventsource-parser";
 import { providerObjectSchema, type ProviderObject, type ToolInvocation } from "@curator/shared";
 import type { OpenRouterConfiguration } from "./configuration.js";
+import {
+  INPUT_BUDGET_TOKENS, assembleRequest, compactionBatch, compactionOf, estimateTokens,
+  summaryRequest, type Compaction, type WorkingContext,
+} from "./working-context.js";
 
 /** A call the provider asked for, before Curator knows how it went. */
 type ToolRequest = Omit<ToolInvocation, "failed">;
@@ -24,12 +28,13 @@ export interface ProviderCheckpoint {
  */
 export interface AgentSession {
   /** Rebuilt each turn, so tool results and current catalog state are in it. */
-  context(): ProviderObject[];
+  context(): WorkingContext;
   beginTurn(): number;
   record(frame: unknown): void;
   checkpoint(turn: number, state: ProviderCheckpoint): void;
   completeTurn(turn: number): void;
   toolResult(tool: ToolInvocation, output: string): void;
+  compact(compaction: Compaction): void;
 }
 
 /**
@@ -168,20 +173,15 @@ export async function runAgentChat(configuration: OpenRouterConfiguration,
 
   for (;;) {
     signal.throwIfAborted();
+    // Fitting the request can itself take a request, and it happens between
+    // turns, where no tool exchange is waiting to be answered.
+    const messages = await fitWorkingContext(configuration, session, definitions, signal);
     const turn = session.beginTurn();
     let latest: ProviderObject = { role: "assistant", content: "" };
-    const model = new OpenRouterChatModel(configuration, definitions,
+    const state = await runRequest(configuration, definitions, messages, signal,
       (frame) => session.record(frame),
-      (state) => { latest = state.message; session.checkpoint(turn, state); });
-    // The wrapper is just a LangChain carrier. The adapter submits the exact
-    // native role and fields, including opaque reasoning, from providerMessage.
-    const context = session.context().map((providerMessage) => new HumanMessage({
-      content: "", additional_kwargs: { providerMessage },
-    }));
-    const stream = await model.stream(context, { signal });
-    for await (const _chunk of stream) {
-      // Persistence and publication already happened before normalization/yield.
-    }
+      (checkpoint) => { latest = checkpoint.message; session.checkpoint(turn, checkpoint); });
+    latest = state.message;
     session.completeTurn(turn);
 
     const calls = readToolCalls(latest);
@@ -192,6 +192,69 @@ export async function runAgentChat(configuration: OpenRouterConfiguration,
       session.toolResult({ ...call, failed }, output);
     }
   }
+}
+
+/**
+ * One provider request, start to finish, returning what it finally said. The
+ * carrier is just LangChain's message wrapper: the adapter submits the exact
+ * native role and fields, including opaque reasoning, from providerMessage.
+ */
+async function runRequest(configuration: OpenRouterConfiguration, tools: ToolDefinition[],
+  messages: ProviderObject[], signal: AbortSignal, record: (frame: unknown) => void,
+  checkpoint: (state: ProviderCheckpoint) => void): Promise<ProviderCheckpoint> {
+  let latest: ProviderCheckpoint = { message: { role: "assistant", content: "" }, text: "", usage: null };
+  const model = new OpenRouterChatModel(configuration, tools, record, (state) => {
+    latest = state;
+    checkpoint(state);
+  });
+  const stream = await model.stream(messages.map((providerMessage) => new HumanMessage({
+    content: "", additional_kwargs: { providerMessage },
+  })), { signal });
+  for await (const _chunk of stream) {
+    // Persistence and publication already happened before normalization/yield.
+  }
+  return latest;
+}
+
+/**
+ * Makes the next request fit, by summarizing the oldest exchanges into an event
+ * of their own until it does. Working context is replaced only once a summary
+ * has actually been written, so a failed summary leaves the conversation whole
+ * and ends the attempt with the provider's own error. Nothing is silently
+ * dropped: what cannot be made smaller is reported as exactly that.
+ */
+async function fitWorkingContext(configuration: OpenRouterConfiguration, session: AgentSession,
+  tools: ToolDefinition[], signal: AbortSignal): Promise<ProviderObject[]> {
+  let context = session.context();
+  // Every request also carries the tool definitions, so they are part of what
+  // has to fit. Measured once per round: the request being sized is the whole
+  // conversation, and serializing it again for each question is not free.
+  const carried = estimateTokens(tools as unknown as ProviderObject[]);
+  let estimate = carried + estimateTokens(assembleRequest(context));
+  while (estimate > INPUT_BUDGET_TOKENS) {
+    signal.throwIfAborted();
+    const batch = compactionBatch(context, estimate);
+    if (batch.length === 0) {
+      throw new Error("This request does not fit the model's working context, and no earlier exchange can be summarized to make room. The conversation is retained; start a new message so this attempt begins from current state.");
+    }
+    const summary = await runRequest(configuration, [], summaryRequest(batch), signal,
+      (frame) => session.record(frame), () => {});
+    if (summary.text.trim() === "") {
+      throw new Error("The model returned an empty summary while compacting this conversation, so nothing was replaced.");
+    }
+    session.compact(compactionOf(batch, summary.text, summary.usage));
+    // Stop during the summary leaves the event unrecorded, so end here as
+    // cancelled rather than reading the unchanged context as a failure.
+    signal.throwIfAborted();
+
+    context = session.context();
+    const next = carried + estimateTokens(assembleRequest(context));
+    if (next >= estimate) {
+      throw new Error("Compacting this conversation did not make the next request smaller, so it would repeat without end. The conversation is retained; start a new message so this attempt begins from current state.");
+    }
+    estimate = next;
+  }
+  return assembleRequest(context);
 }
 
 /**

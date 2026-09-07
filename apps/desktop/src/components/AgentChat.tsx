@@ -81,6 +81,23 @@ function Entry({ entry }: { entry: ChatEntry }) {
       </details>
     );
   }
+  if (entry.kind === "compaction") {
+    // The summary is an event beside the conversation, not a replacement for
+    // it: every entry it stands for is still above, in order.
+    return (
+      <details className="chat-compaction">
+        <summary>
+          Context compacted · {entry.compaction?.replaced ?? 0} earlier exchanges summarized
+        </summary>
+        <p className="small muted">
+          The model's working context was filling, so these exchanges were summarized for later
+          requests. Nothing was removed from this conversation, and the summary is what the model
+          was given in their place.
+        </p>
+        <pre>{entry.text}</pre>
+      </details>
+    );
+  }
   const message = entry.providerMessage;
   const reasoning = message && Object.fromEntries(Object.entries(message).filter(([key]) => key.startsWith("reasoning")));
   return (

@@ -7,6 +7,7 @@ import {
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
 import { requireIdle } from "./storage/execution-state.js";
+import type { Compaction } from "./working-context.js";
 
 /** Workspace-owned transcript and lifecycle persistence share catalog transactions. */
 export class ChatApplication {
@@ -43,19 +44,18 @@ export class ChatApplication {
       };
       this.database.prepare("INSERT INTO agent_executions (id, workspace_id, status, data) VALUES (?, ?, ?, ?)")
         .run(execution.id, workspaceId, execution.status, JSON.stringify(execution));
-      this.append(execution, "user", text, { role: "user", content: text });
+      this.append(execution, "user", text, { providerMessage: { role: "user", content: text } });
       this.append(execution, "lifecycle", "Running");
       return execution;
     });
   }
 
   append(execution: AgentExecution, kind: ChatEntry["kind"], text: string,
-    providerMessage: ProviderObject | null = null, unfinished = false,
-    tool: ToolInvocation | null = null): number {
-    const entry = {
+    detail: Partial<Pick<ChatEntry, "providerMessage" | "unfinished" | "tool" | "usage" | "compaction">> = {}): number {
+    const entry: Omit<ChatEntry, "sequence"> = {
       workspaceId: execution.workspaceId, executionId: execution.id, kind,
-      text, createdAt: new Date().toISOString(), providerMessage, unfinished,
-      tool, usage: null,
+      text, createdAt: new Date().toISOString(), providerMessage: null,
+      unfinished: false, tool: null, usage: null, compaction: null, ...detail,
     };
     this.database.prepare("INSERT INTO chat_entries (workspace_id, execution_id, data) VALUES (?, ?, ?)")
       .run(execution.workspaceId, execution.id, JSON.stringify(entry));
@@ -72,7 +72,9 @@ export class ChatApplication {
    */
   beginTurn(execution: AgentExecution): number {
     return inTransaction(this.database, () =>
-      this.append(execution, "assistant", "", { role: "assistant", content: "" }, true));
+      this.append(execution, "assistant", "", {
+        providerMessage: { role: "assistant", content: "" }, unfinished: true,
+      }));
   }
 
   /** The turn's provider request ended cleanly, so its content is complete. */
@@ -89,8 +91,27 @@ export class ChatApplication {
     inTransaction(this.database, () => {
       const current = this.execution(execution.workspaceId, execution.id);
       if (current.status !== "running") return;
-      this.append(execution, "tool", output,
-        { role: "tool", tool_call_id: tool.callId, content: output }, false, tool);
+      this.append(execution, "tool", output, {
+        providerMessage: { role: "tool", tool_call_id: tool.callId, content: output }, tool,
+      });
+    });
+  }
+
+  /**
+   * Records one compaction. The summary is an event of its own: no earlier
+   * entry is rewritten, replaced, or removed, and a later request reads this
+   * instead of the exchanges it stands for.
+   */
+  appendCompaction(execution: AgentExecution, compaction: Compaction): void {
+    inTransaction(this.database, () => {
+      const current = this.execution(execution.workspaceId, execution.id);
+      if (current.status !== "running") return;
+      this.append(execution, "compaction", compaction.summary, {
+        providerMessage: compaction.message,
+        compaction: compaction.record,
+        usage: compaction.usage,
+      });
+      this.saveExecution({ ...current, ...this.totals(execution.id) });
     });
   }
 
@@ -168,7 +189,7 @@ export class ChatApplication {
   private totals(executionId: string): Pick<AgentExecution, "usage" | "usageRequests" | "usageComplete"> {
     const snapshots = this.database.prepare(
       `SELECT sequence, data FROM chat_entries
-        WHERE execution_id = ? AND json_extract(data, '$.kind') = 'assistant'
+        WHERE execution_id = ? AND json_extract(data, '$.kind') IN ('assistant', 'compaction')
         ORDER BY sequence`,
     ).all(executionId).map((row) => readEntry(row).usage);
     const reported = snapshots.filter((usage): usage is ProviderObject => usage !== null);

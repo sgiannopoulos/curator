@@ -444,9 +444,10 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 .chat-history pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.6 var(--mono); padding: 8px 0; }
 .chat-history dd { margin: 0 0 6px; }
 .chat-history dt { color: var(--muted); }
-.chat-tool, .chat-activity { font-size: 11px; color: var(--muted); }
-.chat-tool > summary, .chat-activity > summary { color: var(--ink); }
-.chat-tool[open] > summary, .chat-activity[open] > summary { margin-bottom: 4px; }
+.chat-tool, .chat-activity, .chat-compaction { font-size: 11px; color: var(--muted); }
+.chat-tool > summary, .chat-activity > summary, .chat-compaction > summary { color: var(--ink); }
+.chat-tool[open] > summary, .chat-activity[open] > summary,
+.chat-compaction[open] > summary { margin-bottom: 4px; }
 .chat-exclusions { margin: 4px 0; padding-left: 16px; }
 .chat-exclusions li { margin: 3px 0; }
 .chat-prerequisite { font-size: 11px; margin: 8px 0; }

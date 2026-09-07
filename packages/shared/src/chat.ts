@@ -34,11 +34,21 @@ export const toolInvocationSchema = z.object({
   failed: z.boolean(),
 });
 
+/**
+ * What one compaction event stands for. The summary replaces those entries in
+ * the model's working context only; they stay in Agent Chat, in order, exactly
+ * as they were written.
+ */
+export const compactionRecordSchema = z.object({
+  throughSequence: z.number().int().positive(),
+  replaced: z.number().int().positive(),
+});
+
 export const chatEntrySchema = z.object({
   sequence: z.number().int().positive(),
   workspaceId: z.string(),
   executionId: z.string(),
-  kind: z.enum(["user", "assistant", "tool", "lifecycle"]),
+  kind: z.enum(["user", "assistant", "tool", "lifecycle", "compaction"]),
   createdAt: z.string(),
   text: z.string(),
   unfinished: z.boolean(),
@@ -46,8 +56,13 @@ export const chatEntrySchema = z.object({
   providerMessage: providerObjectSchema.nullable(),
   /** Present on tool entries: which call this output answers. */
   tool: toolInvocationSchema.nullable(),
-  /** Present on assistant entries: what that one request reported. */
+  /** Present on assistant and compaction entries: what that request reported. */
   usage: providerObjectSchema.nullable(),
+  /**
+   * Present on compaction entries. Entries written before compaction existed
+   * carry no such record, and read back as none rather than as unreadable.
+   */
+  compaction: compactionRecordSchema.nullable().default(null),
 });
 
 /**
@@ -86,6 +101,7 @@ export const chatSnapshotSchema = z.object({
 export type ProviderObject = z.infer<typeof providerObjectSchema>;
 export type AgentExecution = z.infer<typeof agentExecutionSchema>;
 export type ToolInvocation = z.infer<typeof toolInvocationSchema>;
+export type CompactionRecord = z.infer<typeof compactionRecordSchema>;
 export type ChatEntry = z.infer<typeof chatEntrySchema>;
 export type FileActivityKind = z.infer<typeof fileActivityKindSchema>;
 export type FileActivity = z.infer<typeof fileActivitySchema>;

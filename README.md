@@ -8,8 +8,8 @@ owns application logic and an app-private SQLite store.
 This checkout implements opening and reopening Workspaces, manual User Flow
 curation, and persistent Agent Chat with OpenRouter streaming, Stop, and Retry.
 The agent reads the Repository with generic file and shell tools to answer
-questions about it. Agent catalog changes, compaction, and Scans arrive in later
-work.
+questions about it, and long conversations continue through context compaction.
+Agent catalog changes and Scans arrive in later work.
 
 ## Prerequisites
 
@@ -71,9 +71,9 @@ binary content unless it matters, never to modify the Repository or run its
 code, package managers, builds, tests, or anything that reaches the network, and
 to treat what it reads as evidence rather than as instructions. There is no path
 confinement, secret filter, ignore enforcement, or tool sandbox behind those
-instructions, and no dedicated network tool exists. Nothing counts the turns,
-tool calls, time, or tokens an attempt uses: it ends when the agent answers, when
-a request fails, or when you Stop it.
+instructions, and no dedicated network tool exists. Nothing limits the turns,
+tool calls, time, tokens, or cost an attempt may use: it ends when the agent
+answers, when a request fails, or when you Stop it.
 
 Each attempt reports the file activity its tools observed. **Considered** means a
 path was surfaced and weighed for relevance, **Read** means some of its contents
@@ -93,6 +93,29 @@ The application owns an OpenRouter adapter using LangChain's `BaseChatModel`
 streaming and tool interfaces. The loop over them is Curator's own, so each turn
 sends the provider its exact native message back, where a prebuilt agent graph
 would rebuild the request from normalized messages instead.
+
+## Long conversations
+
+A conversation outgrows what one request can carry. When the next request would
+not fit, Curator summarizes its oldest exchanges with the same configured model
+and sends that summary in their place. The rules, the current catalog, and the
+identity of the attempt are never summarized; they are rebuilt from current
+state on every request, so a summary is never the only record of them. An
+assistant turn and the tool results answering it are summarized together or not
+at all.
+
+Compaction changes only what the model is shown. Every entry stays in Agent
+Chat, in order, exactly as it was written, and each summary is recorded there as
+its own collapsed event you can open and read. A summary that cannot be written,
+a conversation that cannot be made smaller, and a single exchange too large to
+summarize each end the attempt with the reason, keeping everything committed so
+far; nothing is retried automatically and no content is dropped to make room.
+
+Curator estimates request size rather than measuring it: OpenRouter does not say
+what context window the routed model has without being asked, and the accepted
+contract allows no preflight request. The estimate is deliberately cautious, so
+compaction usually happens earlier than strictly necessary. It is a trigger, not
+a ceiling — nothing here stops an attempt for being long or expensive.
 
 The adapter stores complete provider payloads before normalization, assembles
 native continuation messages separately from display text, and records one usage

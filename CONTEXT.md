@@ -48,6 +48,14 @@ _Avoid_: Curation Task, Scan-only transcript, hidden chain of thought, activity 
 One attempt to carry out an explicitly submitted Scan or ordinary Agent Chat request within a Workspace, retaining its identity across internal agent turns and context compaction until it reaches a terminal outcome. A retry is a new Agent Execution; a Scan execution also has an associated Scan Record.
 _Avoid_: Agent Chat, model request, resumable task
 
+**Working Context**:
+What one model request carries: the standing rules, current state, and as much of the Agent Chat as fits. It is rebuilt for every request and is not the conversation, which is retained in full regardless of what any request contained.
+_Avoid_: Agent Chat, conversation history
+
+**Compaction**:
+Replacing the oldest exchanges in a Working Context with a model-written summary of them, so an Agent Execution can continue as that context fills. It is recorded as an Agent Chat event and never rewrites, replaces, or removes the entries it summarizes.
+_Avoid_: Truncation, trimming, forgetting
+
 **Scanning Effort**:
 The user-selected prompt preset for a Scan: Quick, Standard, or Maximum. Higher effort asks the agent to produce progressively more detailed User Flows, without changing the Scan machinery or promising complete coverage.
 _Avoid_: Confidence, completeness
