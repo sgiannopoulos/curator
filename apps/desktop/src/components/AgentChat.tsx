@@ -3,15 +3,22 @@ import type { AgentExecution, ChatEntry, ExecutionActivity, FileActivity } from 
 import { sendCommand } from "../bridge";
 import type { CuratorSession } from "../useCuratorSession";
 
-export function AgentChat({ session }: { session: CuratorSession }) {
+export function AgentChat({ session, focusComposer }: { session: CuratorSession; focusComposer: number }) {
   const { chat, panels } = session;
   const history = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const following = useRef(true);
   const running = chat?.executions.find((execution) => execution.status === "running");
   const unavailable = chat?.blockedReason ?? null;
   useEffect(() => {
     if (following.current && history.current) history.current.scrollTop = history.current.scrollHeight;
   }, [chat, panels.chatMinimized]);
+  useEffect(() => {
+    if (focusComposer === 0) return;
+    // Wait until the generation dialog has closed and restored focus.
+    const frame = requestAnimationFrame(() => composer.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [focusComposer]);
   const entriesByExecution = new Map<string, ChatEntry[]>();
   for (const entry of chat?.entries ?? []) {
     const entries = entriesByExecution.get(entry.executionId) ?? [];
@@ -37,7 +44,7 @@ export function AgentChat({ session }: { session: CuratorSession }) {
           if (element) following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 40;
         }}>
           {chat === null && <p className="small muted">Loading Agent Chat…</p>}
-          {chat?.entries.length === 0 && <p className="small muted">Ask about this Repository or the User Flows you have. Curator reads source to answer; changing the catalog through chat arrives in later work.</p>}
+          {chat?.entries.length === 0 && <p className="small muted">Ask about this Repository or request a new User Flow. Curator reads the implementation and adds supporting Source Citations to flows it creates.</p>}
           {chat?.executions.map((execution) => (
             <article key={execution.id} className="chat-attempt" aria-label={`Agent Execution, ${execution.status}`}>
               {entriesByExecution.get(execution.id)?.map((entry) => <Entry key={entry.sequence} entry={entry} />)}
@@ -49,9 +56,9 @@ export function AgentChat({ session }: { session: CuratorSession }) {
           {unavailable && <p className="chat-prerequisite">{unavailable}</p>}
         </div>
         <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); session.sendMessage(); }}>
-          <textarea aria-label="Message Agent Chat" value={session.chatDraft}
+          <textarea ref={composer} aria-label="Message Agent Chat" value={session.chatDraft}
             onChange={(event) => session.setChatDraft(event.target.value)} rows={2}
-            placeholder="Ask about this Repository…" disabled={!session.ready || session.working || chat === null || unavailable !== null} />
+            placeholder="Ask about this Repository or request a User Flow…" disabled={!session.ready || session.working || chat === null || unavailable !== null} />
           {running ? (
             <button type="button" onClick={() => session.stopExecution(running.id)}
               disabled={!session.ready || running.cancellationRequestedAt !== null}>Stop</button>
@@ -66,6 +73,19 @@ export function AgentChat({ session }: { session: CuratorSession }) {
 
 function Entry({ entry }: { entry: ChatEntry }) {
   if (entry.kind === "lifecycle") return <p className="chat-lifecycle">{entry.text}</p>;
+  if (entry.kind === "result" || entry.kind === "validation") {
+    return (
+      <details className="chat-tool" open={entry.kind === "result"}>
+        <summary>{entry.kind === "result" ? entry.text : "Result rejected · repair requested"}</summary>
+        {entry.result ? <>
+          <p>{entry.result.flow.description}</p>
+          <p className="small muted">Created Active with {entry.result.flow.citations.length} supporting source(s).
+            This records the accepted result; the catalog shows the flow's current state.</p>
+          <details><summary>Accepted result details</summary><pre>{JSON.stringify(entry.result, null, 2)}</pre></details>
+        </> : <pre>{entry.text}</pre>}
+      </details>
+    );
+  }
   if (entry.kind === "tool") {
     // What ran, with the arguments the provider asked for and everything that
     // came back, collapsed so a long inspection does not bury the answer.

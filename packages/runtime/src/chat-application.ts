@@ -51,11 +51,11 @@ export class ChatApplication {
   }
 
   append(execution: AgentExecution, kind: ChatEntry["kind"], text: string,
-    detail: Partial<Pick<ChatEntry, "providerMessage" | "unfinished" | "tool" | "usage" | "compaction">> = {}): number {
+    detail: Partial<Pick<ChatEntry, "providerMessage" | "unfinished" | "tool" | "usage" | "compaction" | "result">> = {}): number {
     const entry: Omit<ChatEntry, "sequence"> = {
       workspaceId: execution.workspaceId, executionId: execution.id, kind,
       text, createdAt: new Date().toISOString(), providerMessage: null,
-      unfinished: false, tool: null, usage: null, compaction: null, ...detail,
+      unfinished: false, tool: null, usage: null, compaction: null, result: null, ...detail,
     };
     this.database.prepare("INSERT INTO chat_entries (workspace_id, execution_id, data) VALUES (?, ?, ?)")
       .run(execution.workspaceId, execution.id, JSON.stringify(entry));

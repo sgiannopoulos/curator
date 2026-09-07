@@ -16,6 +16,8 @@ export function FlowList({
   disabled,
   onSelect,
   onAdd,
+  onGenerate,
+  generationDisabled,
   minimized,
   onToggle,
 }: {
@@ -24,6 +26,8 @@ export function FlowList({
   disabled: boolean;
   onSelect: (flowId: string) => void;
   onAdd: () => void;
+  onGenerate: () => void;
+  generationDisabled: boolean;
   minimized: boolean;
   onToggle: () => void;
 }) {
@@ -70,8 +74,11 @@ export function FlowList({
           );
         })}
       </div>
+      <button className="add-flow" onClick={onGenerate} disabled={generationDisabled}>
+        + Generate a flow
+      </button>
       <button className="add-flow" onClick={onAdd} disabled={disabled}>
-        + Add User Flow
+        + Add User Flow manually
       </button>
       </div>
     </section>

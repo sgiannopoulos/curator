@@ -11,6 +11,7 @@ import {
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
 import { requireIdle } from "./storage/execution-state.js";
+import type { CitationEvidence } from "./repository-access.js";
 
 const FLOW_COLUMNS =
   "id, workspace_id, title, description, status, created_at, updated_at, created_by, updated_by";
@@ -68,23 +69,39 @@ export class CatalogApplication {
         updatedBy: "manual",
         citations: [],
       };
-      this.#database
-        .prepare(
-          `INSERT INTO user_flows (${FLOW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          flow.id,
-          flow.workspaceId,
-          flow.title,
-          flow.description,
-          flow.status,
-          flow.createdAt,
-          flow.updatedAt,
-          flow.createdBy,
-          flow.updatedBy,
-        );
+      this.#insert(flow);
       return flow;
     });
+  }
+
+  /** Called only inside result acceptance's identity/lifecycle transaction. */
+  createFromEvidence(workspaceId: string, draft: UserFlowDraft, evidence: CitationEvidence[]): UserFlow {
+    this.#requireWorkspace(workspaceId);
+    const now = new Date().toISOString();
+    const flow: UserFlow = {
+      id: randomUUID(), workspaceId, ...draft, status: "active",
+      createdAt: now, updatedAt: now, createdBy: "agent", updatedBy: "agent",
+      citations: evidence.map(({ contentFingerprint: _fingerprint, ...citation }) => ({
+        ...citation, id: randomUUID(), acceptedAt: now,
+      })),
+    };
+    this.#insert(flow);
+    for (const [position, citation] of flow.citations.entries()) {
+      this.#database.prepare(`INSERT INTO source_citations
+        (id, user_flow_id, path, start_line, end_line, explanation, content_fingerprint, accepted_at, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        citation.id, flow.id, citation.path, citation.startLine, citation.endLine,
+        citation.explanation, evidence[position]!.contentFingerprint, now, position,
+      );
+    }
+    return flow;
+  }
+
+  #insert(flow: UserFlow): void {
+    this.#database.prepare(`INSERT INTO user_flows (${FLOW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      flow.id, flow.workspaceId, flow.title, flow.description, flow.status,
+      flow.createdAt, flow.updatedAt, flow.createdBy, flow.updatedBy,
+    );
   }
 
   /**

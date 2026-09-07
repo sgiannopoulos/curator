@@ -7,6 +7,7 @@ import { z } from "zod";
  */
 export const applicationErrorCodes = [
   "invalid_request",
+  "invalid_result",
   "unknown_command",
   "repository_not_a_directory",
   "workspace_not_found",

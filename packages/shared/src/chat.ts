@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { acceptedResultSchema } from "./result.js";
 
 export const providerObjectSchema = z.record(z.string(), z.json());
 export const executionStatusSchema = z.enum([
@@ -48,7 +49,7 @@ export const chatEntrySchema = z.object({
   sequence: z.number().int().positive(),
   workspaceId: z.string(),
   executionId: z.string(),
-  kind: z.enum(["user", "assistant", "tool", "lifecycle", "compaction"]),
+  kind: z.enum(["user", "assistant", "tool", "lifecycle", "compaction", "result", "validation"]),
   createdAt: z.string(),
   text: z.string(),
   unfinished: z.boolean(),
@@ -63,6 +64,7 @@ export const chatEntrySchema = z.object({
    * carry no such record, and read back as none rather than as unreadable.
    */
   compaction: compactionRecordSchema.nullable().default(null),
+  result: acceptedResultSchema.nullable().default(null),
 });
 
 /**

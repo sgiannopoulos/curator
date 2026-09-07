@@ -5,7 +5,7 @@
  * untouched. A change to these tables raises the version, and existing stores
  * then report as unsupported rather than being upgraded in place.
  */
-export const SUPPORTED_SCHEMA_VERSION = 4;
+export const SUPPORTED_SCHEMA_VERSION = 5;
 
 export const SCHEMA_STATEMENTS = `
 CREATE TABLE workspaces (
@@ -85,4 +85,11 @@ CREATE TABLE provider_frames (
   data TEXT NOT NULL
 ) STRICT;
 CREATE INDEX provider_execution ON provider_frames (execution_id, sequence);
+
+CREATE TABLE accepted_results (
+  execution_id TEXT NOT NULL REFERENCES agent_executions (id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  PRIMARY KEY (execution_id, event_id)
+) STRICT;
 `;

@@ -5,7 +5,7 @@ import { ChatGenerationChunk, type ChatResult } from "@langchain/core/outputs";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { createParser } from "eventsource-parser";
-import { providerObjectSchema, type ProviderObject, type ToolInvocation } from "@curator/shared";
+import { CuratorError, providerObjectSchema, type ProviderObject, type ToolInvocation } from "@curator/shared";
 import type { OpenRouterConfiguration } from "./configuration.js";
 import {
   INPUT_BUDGET_TOKENS, assembleRequest, compactionBatch, compactionOf, estimateTokens,
@@ -279,6 +279,8 @@ async function runTool(tools: Map<string, StructuredToolInterface>, call: ToolRe
     return { output: typeof output === "string" ? output : JSON.stringify(output), failed: false };
   } catch (cause) {
     if (signal.aborted) throw cause;
+    // A failed commit is not a model-repairable result validation error.
+    if (cause instanceof CuratorError && cause.code === "storage_unreadable") throw cause;
     return { output: `${call.name} failed: ${describeAgentFailure(cause)}`, failed: true };
   }
 }

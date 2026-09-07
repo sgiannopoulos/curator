@@ -3,6 +3,7 @@ import type { UserFlow, UserFlowDraft, Workspace } from "@curator/shared";
 import { Dialog } from "../components/Dialog";
 import { FlowDetail, type FlowTab } from "../components/FlowDetail";
 import { FlowEditorDialog } from "../components/FlowEditorDialog";
+import { GenerateFlowDialog } from "../components/GenerateFlowDialog";
 import { FlowList } from "../components/FlowList";
 import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
 import { describeMoment } from "../format";
@@ -28,6 +29,9 @@ export function WorkspacePage({
   const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
   const [removing, setRemoving] = useState<UserFlow | null>(null);
   const [futurePreview, setFuturePreview] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [focusComposer, setFocusComposer] = useState(0);
+  const generationDisabled = working || session.chat === null || session.chat.blockedReason !== null;
 
   // Selecting a flow opens its Description, so behavior is what you read first.
   useEffect(() => {
@@ -85,6 +89,8 @@ export function WorkspacePage({
           disabled={working}
           onSelect={session.selectFlow}
           onAdd={() => setEditing("add")}
+          onGenerate={() => setGenerating(true)}
+          generationDisabled={generationDisabled}
           minimized={panels.flowsMinimized}
           onToggle={() => session.setPanels({ flowsMinimized: !panels.flowsMinimized })}
         />
@@ -109,7 +115,7 @@ export function WorkspacePage({
             onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
           />
         )}
-        <AgentChat session={session} />
+        <AgentChat session={session} focusComposer={focusComposer} />
       </aside>
 
       <section className="main">
@@ -118,7 +124,7 @@ export function WorkspacePage({
             <h2>{session.flows.length === 0 ? "Start with a User Flow" : "Choose a User Flow"}</h2>
             <p>
               {session.flows.length === 0
-                ? "Describe behavior you already know, in your own words. A title and a description are all it takes."
+                ? "Ask Curator to create a flow from this Repository's source, or describe behavior you already know in your own words."
                 : "Pick one from the list to read its description and the evidence behind it."}
             </p>
             {session.flows.length === 0 && (
@@ -145,6 +151,15 @@ export function WorkspacePage({
           />
         )}
       </section>
+
+      <GenerateFlowDialog open={generating} disabled={generationDisabled}
+        onClose={() => setGenerating(false)} onCompose={(request) => {
+          // Preserve an unsent draft when adding the composed request to it.
+          session.setChatDraft(session.chatDraft.trim() ? `${session.chatDraft}\n\n${request}` : request);
+          session.setPanels({ chatMinimized: false, chatHeight: Math.max(panels.chatHeight, 300) });
+          setGenerating(false);
+          setFocusComposer((value) => value + 1);
+        }} />
 
       <FlowEditorDialog
         open={editing !== "none"}

@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { readdir, lstat, mkdir, readFile, stat, writeFile, appendFile } from "node:fs/promises";
+import { readdir, lstat, mkdir, readFile, realpath, stat, writeFile, appendFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { ActivityReport } from "./file-activity-log.js";
+import { CuratorError, type CitationDraft } from "@curator/shared";
+
+export type CitationEvidence = CitationDraft & { contentFingerprint: string };
 
 /**
  * Sizes the tools state in their own output rather than trimming quietly. They
@@ -49,6 +53,48 @@ export class RepositoryAccess {
       this.#writeWorkingFile(signal),
       this.#reportExcludedPaths(),
     ] as StructuredToolInterface[];
+  }
+
+  /**
+   * Result integrity, independent of the tools' prompt-governed access policy.
+   * Read the evidence before the acceptance transaction. The whole-file hash
+   * records exactly which content was checked, for later freshness inspection.
+   */
+  async inspectCitations(citations: CitationDraft[], signal: AbortSignal): Promise<CitationEvidence[]> {
+    const evidence: CitationEvidence[] = [];
+    const root = await realpath(this.repositoryLocator).catch(() => {
+      throw new CuratorError("invalid_result", "The Repository is unavailable; citations cannot be accepted.");
+    });
+    for (const [index, citation] of citations.entries()) {
+      signal.throwIfAborted();
+      const reject = (reason: string): never => {
+        throw new CuratorError("invalid_result", `citations[${index}] (${citation.path}): ${reason}`);
+      };
+      if (isAbsolute(citation.path) || citation.path.includes("\\") || citation.path.includes("\0") ||
+        citation.path.split("/").some((part) => part === ".." || part === "." || part === "")) {
+        reject("path must be a Repository-relative file path without empty, '.' or '..' segments.");
+      }
+      const absolute = await realpath(resolve(root, citation.path)).catch(() => reject("source file does not exist or cannot be read."));
+      const inside = relative(root, absolute);
+      if (inside === "" || inside === ".." || inside.startsWith("../") || isAbsolute(inside)) {
+        reject("source must resolve to a file inside this Repository.");
+      }
+      const info = await stat(absolute).catch(() => reject("source file cannot be read."));
+      if (!info.isFile()) reject("source must be a regular file.");
+      const contents = await readFile(absolute, { signal }).catch((cause: unknown) => {
+        signal.throwIfAborted();
+        return reject(`source cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`);
+      });
+      if (looksBinary(contents)) reject("source is binary, so it has no citable text lines.");
+      const text = contents.toString("utf8");
+      const lines = text.length === 0 ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+      if (citation.endLine < citation.startLine || citation.startLine < 1 || citation.endLine > lines) {
+        reject(`line range ${citation.startLine}-${citation.endLine} is invalid; source has ${lines} lines.`);
+      }
+      evidence.push({ ...citation, contentFingerprint: createHash("sha256").update(contents).digest("hex") });
+    }
+    signal.throwIfAborted();
+    return evidence;
   }
 
   #listDirectory(signal: AbortSignal) {

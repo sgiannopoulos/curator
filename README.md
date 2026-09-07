@@ -9,7 +9,8 @@ This checkout implements opening and reopening Workspaces, manual User Flow
 curation, and persistent Agent Chat with OpenRouter streaming, Stop, and Retry.
 The agent reads the Repository with generic file and shell tools to answer
 questions about it, and long conversations continue through context compaction.
-Agent catalog changes and Scans arrive in later work.
+Explicit creation requests now add source-cited User Flows through Agent Chat.
+Editing existing flows through chat and Scans arrive in later work.
 
 ## Prerequisites
 
@@ -50,13 +51,35 @@ Missing configuration blocks hosted work while stored data and manual curation
 remain available. Credentials stay inside the Node runtime.
 
 Agent Chat answers from the current catalog, the prior conversation, and the
-Repository it inspects while answering. It cannot yet change User Flows. Each
+Repository it inspects while answering. An explicit creation request authorizes
+new User Flows supported by implementation evidence. Each
 submitted message or Retry starts a new Agent Execution, and different Workspaces
 can run independently. Manual mutations and new messages are blocked in a busy
 Workspace; inspection and Stop remain available. Stop aborts the local request
 and waits for settlement; it does not guarantee provider-side cancellation or a
 final cost. Actual request failures remain in the conversation with the
 provider's error, without automatic retries or model fallbacks.
+
+**Generate a flow** opens a dialog that composes a request into this same Agent
+Chat, preserving any unsent draft and restoring the composer. Review it and
+press Send to start. Accepted flows appear immediately as Active with an
+agent-assisted origin and display-only Source Citations. The agent is prompted
+to favor reachable human behavior and precision over speculative quantity;
+questions alone do not authorize creation, and chat cannot yet edit or remove
+existing flows.
+
+The agent writes one JSON result event to its execution-owned
+`outbox/result.json`, then submits it for validation. Curator checks its schema,
+execution and Workspace identities, allowed result kind, lifecycle, citation
+paths, source existence, and line bounds. Citation checking is result integrity,
+not tool confinement or proof of evidence sufficiency. Invalid events return
+precise errors in the same conversation for repair without reserving their
+identities. Acceptance commits the result identity, historical result, new flow,
+citations with file-content fingerprints, and chat event together. A replay of
+an accepted identity returns the original outcome without another creation.
+Stop, failure, and restart keep committed creations. Deleted flows stay deleted
+in the current catalog; later discovery may create a new identity for the same
+behavior.
 
 ## Reading the Repository
 
@@ -99,7 +122,7 @@ would rebuild the request from normalized messages instead.
 A conversation outgrows what one request can carry. When the next request would
 not fit, Curator summarizes its oldest exchanges with the same configured model
 and sends that summary in their place. The rules, the current catalog, and the
-identity of the attempt are never summarized; they are rebuilt from current
+identity of the attempt and its accepted results are never summarized; they are rebuilt from current
 state on every request, so a summary is never the only record of them. An
 assistant turn and the tool results answering it are summarized together or not
 at all.
@@ -166,7 +189,7 @@ Working data an attempt writes lives beside that store, under `agent-work`.
 Nothing resumes across a restart, so whatever an ended attempt left there is
 discarded when Curator starts.
 
-This build uses schema version **4**; earlier version 1-3 stores are unsupported
+This build uses schema version **5**; earlier version 1-4 stores are unsupported
 and remain untouched. Agent Chat and provider payloads are retained indefinitely
 in this unencrypted app-private store and may contain source content. Current
 catalog state is independent of historical mentions. On restart, unfinished

@@ -52,6 +52,8 @@ function main(): void {
   rmSync(workingRoot, { recursive: true, force: true });
   const executions = new ExecutionCoordinator(workspaces, settings, workingRoot, (workspaceId) => {
     transport.publish("chat.changed", { workspaceId });
+  }, (workspaceId) => {
+    transport.publish("catalog.changed", { workspaceId, flows: workspaces.catalog.list(workspaceId) });
   });
   const description: RuntimeDescription = {
     protocolVersion: PROTOCOL_VERSION,

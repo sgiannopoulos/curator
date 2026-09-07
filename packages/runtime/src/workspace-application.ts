@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { CuratorError, type Workspace, type WorkspaceOpen } from "@curator/shared";
 import { CatalogApplication } from "./catalog-application.js";
 import { ChatApplication } from "./chat-application.js";
+import { ResultApplication } from "./result-application.js";
 import { FileActivityLog } from "./file-activity-log.js";
 import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
 import { describeCause } from "./logging.js";
@@ -30,11 +31,13 @@ export class WorkspaceApplication {
   readonly catalog: CatalogApplication;
   readonly chat: ChatApplication;
   readonly activity: FileActivityLog;
+  readonly results: ResultApplication;
 
   constructor(database: DatabaseSync) {
     this.#database = database;
     this.catalog = new CatalogApplication(database);
     this.chat = new ChatApplication(database);
+    this.results = new ResultApplication(database, this.catalog, this.chat);
     this.activity = new FileActivityLog(database);
   }
 
