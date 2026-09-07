@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { applicationErrorSchema } from "./errors.js";
+import { userFlowDraftSchema, userFlowSchema } from "./user-flow.js";
 import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
 
 /**
@@ -73,6 +74,38 @@ export const commandContracts = {
     payload: z.object({ workspaceId: z.string().min(1) }).strict(),
     result: workspaceSchema,
   },
+  "catalog.list": {
+    payload: z.object({ workspaceId: z.string().min(1) }).strict(),
+    result: z.object({ flows: z.array(userFlowSchema) }),
+  },
+  "catalog.add": {
+    payload: z
+      .object({ workspaceId: z.string().min(1), draft: userFlowDraftSchema })
+      .strict(),
+    result: userFlowSchema,
+  },
+  "catalog.save": {
+    payload: z
+      .object({
+        workspaceId: z.string().min(1),
+        flowId: z.string().min(1),
+        draft: userFlowDraftSchema,
+      })
+      .strict(),
+    result: userFlowSchema,
+  },
+  "catalog.reactivate": {
+    payload: z
+      .object({ workspaceId: z.string().min(1), flowId: z.string().min(1) })
+      .strict(),
+    result: userFlowSchema,
+  },
+  "catalog.remove": {
+    payload: z
+      .object({ workspaceId: z.string().min(1), flowId: z.string().min(1) })
+      .strict(),
+    result: z.object({ flowId: z.string().min(1) }),
+  },
 } as const;
 
 export type CommandName = keyof typeof commandContracts;
@@ -101,6 +134,10 @@ export const eventContracts = {
   "runtime.ready": runtimeDescriptionSchema,
   "runtime.failed": z.object({ error: applicationErrorSchema }),
   "workspaces.changed": z.object({ workspaces: z.array(workspaceSchema) }),
+  "catalog.changed": z.object({
+    workspaceId: z.string().min(1),
+    flows: z.array(userFlowSchema),
+  }),
 } as const;
 
 export type EventName = keyof typeof eventContracts;

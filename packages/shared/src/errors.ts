@@ -10,6 +10,7 @@ export const applicationErrorCodes = [
   "unknown_command",
   "repository_not_a_directory",
   "workspace_not_found",
+  "user_flow_not_found",
   "protocol_mismatch",
   "storage_unsupported",
   "storage_unreadable",

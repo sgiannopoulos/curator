@@ -10,11 +10,11 @@ export function Dialog({
   footer,
 }: {
   title: string;
-  subtitle?: string;
+  subtitle?: string | undefined;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
-  footer?: ReactNode;
+  footer?: ReactNode | undefined;
 }) {
   const element = useRef<HTMLDialogElement>(null);
 

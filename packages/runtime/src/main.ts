@@ -59,6 +59,38 @@ function main(): void {
     return workspace;
   });
 
+  const catalog = workspaces.catalog;
+  const publishCatalog = (workspaceId: string): void => {
+    transport.publish("catalog.changed", {
+      workspaceId,
+      flows: catalog.list(workspaceId),
+    });
+  };
+
+  transport.handle("catalog.list", ({ workspaceId }) => ({
+    flows: catalog.list(workspaceId),
+  }));
+  transport.handle("catalog.add", ({ workspaceId, draft }) => {
+    const flow = catalog.add(workspaceId, draft);
+    publishCatalog(workspaceId);
+    return flow;
+  });
+  transport.handle("catalog.save", ({ workspaceId, flowId, draft }) => {
+    const flow = catalog.save(workspaceId, flowId, draft);
+    publishCatalog(workspaceId);
+    return flow;
+  });
+  transport.handle("catalog.reactivate", ({ workspaceId, flowId }) => {
+    const flow = catalog.reactivate(workspaceId, flowId);
+    publishCatalog(workspaceId);
+    return flow;
+  });
+  transport.handle("catalog.remove", ({ workspaceId, flowId }) => {
+    const removed = catalog.remove(workspaceId, flowId);
+    publishCatalog(workspaceId);
+    return { flowId: removed };
+  });
+
   const openDatabaseHandle = database;
   transport.listen(() => shutdown(openDatabaseHandle));
   for (const signal of ["SIGINT", "SIGTERM"] as const) {

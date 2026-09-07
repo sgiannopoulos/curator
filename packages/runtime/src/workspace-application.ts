@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
-import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { CuratorError, type Workspace, type WorkspaceOpen } from "@curator/shared";
+import { CatalogApplication } from "./catalog-application.js";
 import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
 import { describeCause } from "./logging.js";
-
-type StoredRow = Record<string, SQLOutputValue>;
+import { readText, type StoredRow } from "./storage/rows.js";
+import { inTransaction } from "./storage/transaction.js";
 
 const WORKSPACE_COLUMNS =
   "id, repository_locator, display_name, created_at, last_opened_at";
@@ -19,8 +20,16 @@ const WORKSPACE_COLUMNS =
 export class WorkspaceApplication {
   readonly #database: DatabaseSync;
 
+  /**
+   * The catalog of each Workspace, reached through the Workspace application
+   * rather than opened separately: this module owns the store, and every
+   * manual mutation and every accepted agent result goes through it.
+   */
+  readonly catalog: CatalogApplication;
+
   constructor(database: DatabaseSync) {
     this.#database = database;
+    this.catalog = new CatalogApplication(database);
   }
 
   list(): Workspace[] {
@@ -43,7 +52,7 @@ export class WorkspaceApplication {
     requireDirectory(locator);
 
     const now = new Date().toISOString();
-    return this.#inTransaction(() => {
+    return inTransaction(this.#database, () => {
       const existing = this.#findByLocator(locator);
       if (existing) {
         this.#touch(existing.id, now);
@@ -80,7 +89,7 @@ export class WorkspaceApplication {
    */
   reopen(workspaceId: string): Workspace {
     const now = new Date().toISOString();
-    return this.#inTransaction(() => {
+    return inTransaction(this.#database, () => {
       const row = this.#database
         .prepare(`SELECT ${WORKSPACE_COLUMNS} FROM workspaces WHERE id = ?`)
         .get(workspaceId);
@@ -109,28 +118,6 @@ export class WorkspaceApplication {
       .run(at, workspaceId);
   }
 
-  #inTransaction<T>(work: () => T): T {
-    this.#database.exec("BEGIN IMMEDIATE");
-    try {
-      const result = work();
-      this.#database.exec("COMMIT");
-      return result;
-    } catch (cause) {
-      try {
-        this.#database.exec("ROLLBACK");
-      } catch {
-        // The transaction already ended; the original failure is the useful one.
-      }
-      if (cause instanceof CuratorError) {
-        throw cause;
-      }
-      throw new CuratorError(
-        "storage_unreadable",
-        "Curator could not complete a change to its data store.",
-        describeCause(cause),
-      );
-    }
-  }
 }
 
 function toWorkspace(row: StoredRow): Workspace {
@@ -141,18 +128,6 @@ function toWorkspace(row: StoredRow): Workspace {
     createdAt: readText(row, "created_at"),
     lastOpenedAt: readText(row, "last_opened_at"),
   };
-}
-
-function readText(row: StoredRow, column: string): string {
-  const value = row[column];
-  if (typeof value !== "string") {
-    throw new CuratorError(
-      "storage_unreadable",
-      "Curator read a Workspace record it could not interpret.",
-      `Column ${column} did not hold text.`,
-    );
-  }
-  return value;
 }
 
 function requireDirectory(locator: string): void {

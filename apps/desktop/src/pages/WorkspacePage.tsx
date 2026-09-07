@@ -1,21 +1,52 @@
-import { useState } from "react";
-import type { Workspace } from "@curator/shared";
+import { useEffect, useState } from "react";
+import type { UserFlow, UserFlowDraft, Workspace } from "@curator/shared";
 import { Dialog } from "../components/Dialog";
+import { FlowDetail, type FlowTab } from "../components/FlowDetail";
+import { FlowEditorDialog } from "../components/FlowEditorDialog";
+import { FlowList } from "../components/FlowList";
+import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
 import { describeMoment } from "../format";
+import type { CuratorSession } from "../useCuratorSession";
 
 /**
- * A Workspace with nothing in it yet. Curating User Flows, the Agent Chat, and
- * Scans arrive in later work; what exists here is the persisted Workspace
- * itself and the options attached to it.
+ * A Workspace and its catalog. Everything here works from stored data alone:
+ * reading and curating User Flows never needs the Repository to be readable.
  */
 export function WorkspacePage({
   workspace,
-  onClose,
+  session,
 }: {
   workspace: Workspace;
-  onClose: () => void;
+  session: CuratorSession;
 }) {
+  const { selectedFlow, working } = session;
+  const [tab, setTab] = useState<FlowTab>("description");
   const [showingOptions, setShowingOptions] = useState(false);
+  const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
+  const [removing, setRemoving] = useState<UserFlow | null>(null);
+  const [futurePreview, setFuturePreview] = useState<string | null>(null);
+
+  // Selecting a flow opens its Description, so behavior is what you read first.
+  useEffect(() => {
+    setTab("description");
+  }, [selectedFlow?.id]);
+
+  // The editor stays open when a save fails, so the typed wording is still
+  // there to correct rather than lost behind the failure notice.
+  const save = (draft: UserFlowDraft) => {
+    if (editing === "existing" && selectedFlow === null) {
+      return;
+    }
+    const pending =
+      editing === "add" || selectedFlow === null
+        ? session.addFlow(draft)
+        : session.saveFlow(selectedFlow.id, draft);
+    void pending.then((committed) => {
+      if (committed) {
+        setEditing("none");
+      }
+    });
+  };
 
   return (
     <div className="workspace-body">
@@ -23,7 +54,7 @@ export function WorkspacePage({
         <header className="workspace-heading">
           <button
             className="monogram"
-            onClick={onClose}
+            onClick={session.closeWorkspace}
             aria-label="Back to Workspaces"
             title="Back to Workspaces"
           >
@@ -45,26 +76,84 @@ export function WorkspacePage({
           </button>
         </header>
 
-        <section className="catalog">
-          <div className="row catalog-meta">
-            <span className="label grow">0 User Flows</span>
-          </div>
-          <div className="catalog-list">
-            <p className="preview-note">No User Flows yet.</p>
-          </div>
-        </section>
+        <FlowList
+          flows={session.flows}
+          selectedFlowId={selectedFlow?.id ?? null}
+          disabled={working}
+          onSelect={session.selectFlow}
+          onAdd={() => setEditing("add")}
+        />
       </aside>
 
       <section className="main">
-        <div className="empty">
-          <h2>This Workspace is ready</h2>
-          <p>
-            Curator remembers this Repository. Its User Flows, Agent Chat, and Scan
-            history are stored in Curator's own data, outside the Repository, and reopen
-            with this Workspace.
-          </p>
-        </div>
+        {selectedFlow === null ? (
+          <div className="empty">
+            <h2>{session.flows.length === 0 ? "Start with a User Flow" : "Choose a User Flow"}</h2>
+            <p>
+              {session.flows.length === 0
+                ? "Describe behavior you already know, in your own words. A title and a description are all it takes."
+                : "Pick one from the list to read its description and the evidence behind it."}
+            </p>
+            {session.flows.length === 0 && (
+              <button
+                className="primary"
+                onClick={() => setEditing("add")}
+                disabled={working}
+                style={{ marginTop: 20 }}
+              >
+                Add User Flow
+              </button>
+            )}
+          </div>
+        ) : (
+          <FlowDetail
+            flow={selectedFlow}
+            tab={tab}
+            working={working}
+            onSelectTab={setTab}
+            onEdit={() => setEditing("existing")}
+            onReactivate={() => void session.reactivateFlow(selectedFlow.id)}
+            onRemove={() => setRemoving(selectedFlow)}
+            onFuturePreview={setFuturePreview}
+          />
+        )}
       </section>
+
+      <FlowEditorDialog
+        open={editing !== "none"}
+        flow={editing === "existing" ? selectedFlow : null}
+        working={working}
+        onSave={save}
+        onClose={() => setEditing("none")}
+      />
+
+      <RemoveFlowDialog
+        flow={removing}
+        working={working}
+        onConfirm={() => {
+          const flow = removing;
+          setRemoving(null);
+          if (flow) {
+            void session.removeFlow(flow.id);
+          }
+        }}
+        onClose={() => setRemoving(null)}
+      />
+
+      <Dialog
+        title={futurePreview ?? ""}
+        subtitle="Future testing feature"
+        open={futurePreview !== null}
+        onClose={() => setFuturePreview(null)}
+      >
+        <p>
+          Curator analyzes source to describe behavior; it does not run the product.
+          Test execution is a later feature, and this control is a placeholder for it.
+        </p>
+        <p className="small muted" style={{ marginTop: 14 }}>
+          Nothing has been run, and nothing has changed.
+        </p>
+      </Dialog>
 
       <Dialog
         title="Workspace options"
@@ -75,6 +164,8 @@ export function WorkspacePage({
         <dl className="details">
           <dt>Repository</dt>
           <dd className="mono">{workspace.repositoryLocator}</dd>
+          <dt>User Flows</dt>
+          <dd>{session.flows.length}</dd>
           <dt>First opened</dt>
           <dd>{describeMoment(workspace.createdAt)}</dd>
           <dt>Last opened</dt>
@@ -82,7 +173,19 @@ export function WorkspacePage({
         </dl>
         <p className="small muted">
           Choosing this same folder again reopens this Workspace rather than starting
-          another one.
+          another one. Its catalog is stored in Curator's own data, outside the
+          Repository.
+        </p>
+        <p style={{ marginTop: 18 }}>
+          <button
+            disabled={working}
+            onClick={() => {
+              setShowingOptions(false);
+              setEditing("add");
+            }}
+          >
+            Add User Flow manually
+          </button>
         </p>
       </Dialog>
     </div>
