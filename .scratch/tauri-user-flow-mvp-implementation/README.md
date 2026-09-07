@@ -25,8 +25,10 @@ Each ticket is a separate local issue marked `ready-for-agent`, with its own end
 ## Execution order
 
 Implementation progress: tickets 01 and 02 are implemented in commits `a17d36d`
-and `1fb618a`. Their original acceptance checklists predate those commits. Ticket
-03 is now implemented and resolved. Ticket 04 is the next available slice.
+and `1fb618a`. Their original acceptance checklists predate those commits.
+Tickets 03 and 04 are now implemented and resolved. Ticket 05 (compaction) and
+ticket 06 (cited creation through Agent Chat) are the next available slices, and
+ticket 12 (unavailable Repositories and Relink) remains available behind 02.
 
 Work an uncompleted ticket only when all its blockers are complete; among available tickets, prefer the lowest number. Initially, [01: Open and reopen a Workspace](issues/01-open-and-reopen-a-workspace.md) is the only unblocked ticket.
 

@@ -15,27 +15,79 @@ export const agentExecutionSchema = z.object({
   endedAt: z.string().nullable(),
   cancellationRequestedAt: z.string().nullable(),
   reason: z.string().nullable(),
+  // One execution spans several provider requests once it calls tools, so the
+  // totals here are the sum of the requests that reported one, never a reading
+  // of the last request alone.
   usage: providerObjectSchema.nullable(),
+  usageRequests: z.number().int().nonnegative(),
   usageComplete: z.boolean(),
 });
+
+/**
+ * A tool call exactly as the provider asked for it, kept beside the output it
+ * produced so the conversation shows what ran and what came back.
+ */
+export const toolInvocationSchema = z.object({
+  callId: z.string(),
+  name: z.string(),
+  arguments: z.string(),
+  failed: z.boolean(),
+});
+
 export const chatEntrySchema = z.object({
   sequence: z.number().int().positive(),
   workspaceId: z.string(),
   executionId: z.string(),
-  kind: z.enum(["user", "assistant", "lifecycle"]),
+  kind: z.enum(["user", "assistant", "tool", "lifecycle"]),
   createdAt: z.string(),
   text: z.string(),
   unfinished: z.boolean(),
   // The continuation message is provider-native, independent of display text.
   providerMessage: providerObjectSchema.nullable(),
+  /** Present on tool entries: which call this output answers. */
+  tool: toolInvocationSchema.nullable(),
+  /** Present on assistant entries: what that one request reported. */
+  usage: providerObjectSchema.nullable(),
 });
+
+/**
+ * What an Agent Execution was observed to do with Repository files.
+ * Considered means a path was surfaced and evaluated for relevance, Read means
+ * some of its contents reached the agent, and Excluded means it was explicitly
+ * skipped with a reason. A path nobody looked at is none of the three: this is
+ * observed activity, not a coverage measure or a safety guarantee.
+ */
+export const fileActivityKinds = ["considered", "read", "excluded"] as const;
+export const fileActivityKindSchema = z.enum(fileActivityKinds);
+export const fileActivitySchema = z.object({
+  path: z.string().min(1),
+  kind: fileActivityKindSchema,
+  reason: z.string().nullable(),
+  /** How many paths a grouped record stands for, where that is known. */
+  count: z.number().int().positive().nullable(),
+});
+
+export const executionActivitySchema = z.object({
+  executionId: z.string(),
+  considered: z.number().int().nonnegative(),
+  read: z.number().int().nonnegative(),
+  excluded: z.number().int().nonnegative(),
+  /** Exclusions carry their reasons inline; they are few and worth reading. */
+  exclusions: z.array(fileActivitySchema),
+});
+
 export const chatSnapshotSchema = z.object({
   entries: z.array(chatEntrySchema),
   executions: z.array(agentExecutionSchema),
+  activity: z.array(executionActivitySchema),
   blockedReason: z.string().nullable(),
 });
 
 export type ProviderObject = z.infer<typeof providerObjectSchema>;
 export type AgentExecution = z.infer<typeof agentExecutionSchema>;
+export type ToolInvocation = z.infer<typeof toolInvocationSchema>;
 export type ChatEntry = z.infer<typeof chatEntrySchema>;
+export type FileActivityKind = z.infer<typeof fileActivityKindSchema>;
+export type FileActivity = z.infer<typeof fileActivitySchema>;
+export type ExecutionActivity = z.infer<typeof executionActivitySchema>;
 export type ChatSnapshot = z.infer<typeof chatSnapshotSchema>;

@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -45,7 +46,11 @@ function main(): void {
   }
 
   const workspaces = new WorkspaceApplication(database);
-  const executions = new ExecutionCoordinator(workspaces, settings, (workspaceId) => {
+  // Working data belongs to one attempt. Nothing resumes across a restart, so
+  // what an ended attempt left behind is discarded rather than replayed.
+  const workingRoot = join(dataDirectory, "agent-work");
+  rmSync(workingRoot, { recursive: true, force: true });
+  const executions = new ExecutionCoordinator(workspaces, settings, workingRoot, (workspaceId) => {
     transport.publish("chat.changed", { workspaceId });
   });
   const description: RuntimeDescription = {
@@ -61,6 +66,9 @@ function main(): void {
   transport.handle("chat.retry", ({ workspaceId, executionId }) => executions.retry(workspaceId, executionId));
   transport.handle("chat.provider", ({ workspaceId, executionId }) => ({
     frames: z.array(z.json()).parse(workspaces.chat.frames(workspaceId, executionId)),
+  }));
+  transport.handle("chat.activity", ({ workspaceId, executionId }) => ({
+    paths: executions.activityPaths(workspaceId, executionId),
   }));
   transport.handle("workspace.open", ({ repositoryLocator }) => {
     const opened = workspaces.open(repositoryLocator);

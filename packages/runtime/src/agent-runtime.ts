@@ -1,14 +1,35 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { ToolDefinition } from "@langchain/core/language_models/base";
 import { AIMessageChunk, HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { ChatGenerationChunk, type ChatResult } from "@langchain/core/outputs";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { createParser } from "eventsource-parser";
-import { providerObjectSchema, type ProviderObject } from "@curator/shared";
+import { providerObjectSchema, type ProviderObject, type ToolInvocation } from "@curator/shared";
 import type { OpenRouterConfiguration } from "./configuration.js";
+
+/** A call the provider asked for, before Curator knows how it went. */
+type ToolRequest = Omit<ToolInvocation, "failed">;
 
 export interface ProviderCheckpoint {
   message: ProviderObject;
   text: string;
   usage: ProviderObject | null;
+}
+
+/**
+ * What the agent loop needs from the Workspace it is working in. Every step is
+ * persisted through this before the next one starts, so a conversation that
+ * ends at any moment is the conversation that was actually held.
+ */
+export interface AgentSession {
+  /** Rebuilt each turn, so tool results and current catalog state are in it. */
+  context(): ProviderObject[];
+  beginTurn(): number;
+  record(frame: unknown): void;
+  checkpoint(turn: number, state: ProviderCheckpoint): void;
+  completeTurn(turn: number): void;
+  toolResult(tool: ToolInvocation, output: string): void;
 }
 
 /**
@@ -18,13 +39,15 @@ export interface ProviderCheckpoint {
  */
 class OpenRouterChatModel extends BaseChatModel {
   readonly #configuration: OpenRouterConfiguration;
+  readonly #tools: ToolDefinition[];
   readonly #record: (frame: unknown) => void;
   readonly #checkpoint: (state: ProviderCheckpoint) => void;
 
-  constructor(configuration: OpenRouterConfiguration, record: (frame: unknown) => void,
-    checkpoint: (state: ProviderCheckpoint) => void) {
+  constructor(configuration: OpenRouterConfiguration, tools: ToolDefinition[],
+    record: (frame: unknown) => void, checkpoint: (state: ProviderCheckpoint) => void) {
     super({ maxRetries: 0, cache: false });
     this.#configuration = configuration;
+    this.#tools = tools;
     this.#record = record;
     this.#checkpoint = checkpoint;
   }
@@ -48,7 +71,9 @@ class OpenRouterChatModel extends BaseChatModel {
       headers: { Authorization: `Bearer ${this.#configuration.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: this.#configuration.model,
-        messages: messages.map((message) => providerObjectSchema.parse(message.additional_kwargs.providerMessage)),
+        messages: messages.map((message) =>
+          forRequest(providerObjectSchema.parse(message.additional_kwargs.providerMessage))),
+        ...(this.#tools.length > 0 ? { tools: this.#tools } : {}),
         stream: true,
         stream_options: { include_usage: true },
       }),
@@ -111,11 +136,13 @@ class OpenRouterChatModel extends BaseChatModel {
         }
         if (chunk.done && !done) throw new Error("OpenRouter disconnected before the end of its response.");
       }
-      if (finishReason !== "stop") {
+      // A turn that asked for tools ends on `tool_calls`, and some providers
+      // label the same turn `stop`. Every other ending — a truncated response,
+      // a filtered one, none at all — leaves content and tool arguments
+      // half-written, so it is a failure rather than a turn to continue from.
+      const ending = readToolCalls(message).length > 0 ? ["tool_calls", "stop"] : ["stop"];
+      if (finishReason === null || !ending.includes(finishReason)) {
         throw new Error(`OpenRouter ended the response with ${finishReason ?? "no finish reason"}. Retained content is unfinished.`);
-      }
-      if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
-        throw new Error("The provider requested tools, but Repository tools are not available in this version.");
       }
     } finally {
       // Settlement includes closing the stream, even when Stop races a chunk.
@@ -125,23 +152,110 @@ class OpenRouterChatModel extends BaseChatModel {
   }
 }
 
-export async function runAgentChat(configuration: OpenRouterConfiguration, messages: ProviderObject[],
-  signal: AbortSignal, record: (frame: unknown) => void,
-  checkpoint: (state: ProviderCheckpoint) => void): Promise<void> {
-  const model = new OpenRouterChatModel(configuration, record, checkpoint);
-  // The wrapper is just a LangChain carrier. The adapter submits the exact
-  // native role and fields, including opaque reasoning, from providerMessage.
-  const context = messages.map((providerMessage) => new HumanMessage({
-    content: "", additional_kwargs: { providerMessage },
-  }));
-  const stream = await model.stream(context, { signal });
-  for await (const _chunk of stream) {
-    // Persistence and publication already happened before normalization/yield.
+/**
+ * The agent loop. LangChain supplies the model streaming and tool interfaces;
+ * the loop over them is the application's, because the accepted provider
+ * contract sends each turn's exact native message back — including opaque
+ * reasoning and tool blocks — and a prebuilt agent graph rebuilds its requests
+ * from normalized messages instead. Owning the loop also means there is no
+ * recursion limit to configure: nothing here counts turns, tool calls, time, or
+ * tokens, and only a terminal outcome or Stop ends it.
+ */
+export async function runAgentChat(configuration: OpenRouterConfiguration,
+  tools: StructuredToolInterface[], session: AgentSession, signal: AbortSignal): Promise<void> {
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  const definitions = tools.map((tool) => convertToOpenAITool(tool));
+
+  for (;;) {
+    signal.throwIfAborted();
+    const turn = session.beginTurn();
+    let latest: ProviderObject = { role: "assistant", content: "" };
+    const model = new OpenRouterChatModel(configuration, definitions,
+      (frame) => session.record(frame),
+      (state) => { latest = state.message; session.checkpoint(turn, state); });
+    // The wrapper is just a LangChain carrier. The adapter submits the exact
+    // native role and fields, including opaque reasoning, from providerMessage.
+    const context = session.context().map((providerMessage) => new HumanMessage({
+      content: "", additional_kwargs: { providerMessage },
+    }));
+    const stream = await model.stream(context, { signal });
+    for await (const _chunk of stream) {
+      // Persistence and publication already happened before normalization/yield.
+    }
+    session.completeTurn(turn);
+
+    const calls = readToolCalls(latest);
+    if (calls.length === 0) return;
+    for (const call of calls) {
+      signal.throwIfAborted();
+      const { output, failed } = await runTool(byName, call, signal);
+      session.toolResult({ ...call, failed }, output);
+    }
   }
+}
+
+/**
+ * A tool that fails answers the agent instead of ending the attempt: bad
+ * arguments and unreadable paths are things it can correct on the next turn.
+ * Stop is not one of those, and travels out to end the execution.
+ */
+async function runTool(tools: Map<string, StructuredToolInterface>, call: ToolRequest,
+  signal: AbortSignal): Promise<{ output: string; failed: boolean }> {
+  const tool = tools.get(call.name);
+  if (!tool) {
+    return { output: `There is no tool named ${call.name}. Available tools: ${[...tools.keys()].join(", ")}.`, failed: true };
+  }
+  let input: unknown;
+  try {
+    input = call.arguments.trim() === "" ? {} : JSON.parse(call.arguments);
+  } catch (cause) {
+    return { output: `Those arguments are not valid JSON: ${describeAgentFailure(cause)}`, failed: true };
+  }
+  try {
+    const output: unknown = await tool.invoke(input as never, { signal });
+    return { output: typeof output === "string" ? output : JSON.stringify(output), failed: false };
+  } catch (cause) {
+    if (signal.aborted) throw cause;
+    return { output: `${call.name} failed: ${describeAgentFailure(cause)}`, failed: true };
+  }
+}
+
+/** The calls a provider message asks for, in the order it asked for them. */
+function readToolCalls(message: ProviderObject): ToolRequest[] {
+  if (!Array.isArray(message.tool_calls)) return [];
+  return message.tool_calls.map((call) => {
+    const details = isObject(call) && isObject(call.function) ? call.function : undefined;
+    if (!isObject(call) || typeof call.id !== "string" || details === undefined ||
+      typeof details.name !== "string") {
+      throw new Error(`OpenRouter requested a tool call Curator could not read: ${JSON.stringify(call)}`);
+    }
+    return {
+      callId: call.id,
+      name: details.name,
+      arguments: typeof details.arguments === "string" ? details.arguments : "",
+    };
+  });
 }
 
 function isObject(value: unknown): value is ProviderObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Streaming carries a positional `index` inside each tool call so its pieces can
+ * be reassembled. It belongs to the transport, not to the message, so the
+ * retained payload keeps it and the request Curator sends does not.
+ */
+function forRequest(message: ProviderObject): ProviderObject {
+  if (!Array.isArray(message.tool_calls)) return message;
+  return {
+    ...message,
+    tool_calls: message.tool_calls.map((call) => {
+      if (!isObject(call)) return call;
+      const { index: _index, ...rest } = call;
+      return rest;
+    }),
+  };
 }
 
 /** Only streamed content fields concatenate; identity/metadata fields do not. */

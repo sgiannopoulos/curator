@@ -183,8 +183,11 @@ impl NodeRuntime {
         wait_for_reply.recv().unwrap_or_else(|_| Err(self.unavailable_error()))
     }
 
-    /// Ends the runtime with the host. Closing its input asks it to stop; a
-    /// runtime that does not settle is terminated so no owned work continues.
+    /// Ends the runtime with the host. Closing its input asks it to stop, which
+    /// is how it cancels its executions and the commands their tools started. A
+    /// runtime that does not settle is asked again by signal, because that path
+    /// still runs its own cleanup, and only then killed outright: a runtime
+    /// killed while wedged cannot end the commands it owns.
     pub fn shutdown(&self) {
         self.stopping.store(true, Ordering::SeqCst);
         drop(self.stdin.lock().unwrap().take());
@@ -192,13 +195,15 @@ impl NodeRuntime {
         let Some(mut child) = self.child.lock().unwrap().take() else {
             return;
         };
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            match child.try_wait() {
-                Ok(Some(_)) => return,
-                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
-                _ => break,
-            }
+        if wait_for_exit(&mut child, Duration::from_secs(5)) {
+            return;
+        }
+        let _ = Command::new("/bin/kill")
+            .arg("-TERM")
+            .arg(child.id().to_string())
+            .status();
+        if wait_for_exit(&mut child, Duration::from_secs(2)) {
+            return;
         }
         let _ = child.kill();
         let _ = child.wait();
@@ -244,6 +249,18 @@ impl NodeRuntime {
                 "Curator's application runtime is not available.",
                 None,
             ),
+        }
+    }
+}
+
+/// Whether the runtime ended within the time given.
+fn wait_for_exit(child: &mut Child, within: Duration) -> bool {
+    let deadline = Instant::now() + within;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
+            _ => return false,
         }
     }
 }

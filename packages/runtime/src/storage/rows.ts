@@ -11,6 +11,15 @@ export function readText(row: StoredRow, column: string): string {
   return value;
 }
 
+/** A column the schema leaves nullable, read without inventing a value for it. */
+export function readOptionalText(row: StoredRow, column: string): string | null {
+  return row[column] === null || row[column] === undefined ? null : readText(row, column);
+}
+
+export function readOptionalInteger(row: StoredRow, column: string): number | null {
+  return row[column] === null || row[column] === undefined ? null : readInteger(row, column);
+}
+
 export function readInteger(row: StoredRow, column: string): number {
   const value = row[column];
   if (typeof value === "number") {

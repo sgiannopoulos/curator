@@ -7,7 +7,9 @@ owns application logic and an app-private SQLite store.
 
 This checkout implements opening and reopening Workspaces, manual User Flow
 curation, and persistent Agent Chat with OpenRouter streaming, Stop, and Retry.
-Repository tools, agent catalog changes, compaction, and Scans arrive in later work.
+The agent reads the Repository with generic file and shell tools to answer
+questions about it. Agent catalog changes, compaction, and Scans arrive in later
+work.
 
 ## Prerequisites
 
@@ -47,20 +49,57 @@ values are required, with no model default. Restart Curator after changing them.
 Missing configuration blocks hosted work while stored data and manual curation
 remain available. Credentials stay inside the Node runtime.
 
-Agent Chat answers from the current catalog and prior conversation. It does not
-yet inspect Repository files or mutate User Flows. Each submitted message or
-Retry starts a new Agent Execution, and different Workspaces can run independently.
-Manual mutations and new messages are blocked in a busy Workspace; inspection
-and Stop remain available. Stop aborts the local request and waits for settlement;
-it does not guarantee provider-side cancellation or a final cost. Actual request
-failures remain in the conversation with the provider's error, without automatic
-retries or model fallbacks.
+Agent Chat answers from the current catalog, the prior conversation, and the
+Repository it inspects while answering. It cannot yet change User Flows. Each
+submitted message or Retry starts a new Agent Execution, and different Workspaces
+can run independently. Manual mutations and new messages are blocked in a busy
+Workspace; inspection and Stop remain available. Stop aborts the local request
+and waits for settlement; it does not guarantee provider-side cancellation or a
+final cost. Actual request failures remain in the conversation with the
+provider's error, without automatic retries or model fallbacks.
+
+## Reading the Repository
+
+The agent has generic tools: directory listing, regular-expression search,
+numbered file reading, a shell command for read-only inspection, and a write
+tool that reaches only Curator's own working data for the current attempt.
+
+Where those tools may point is governed by the agent's prompt, not by the
+application. Curator asks it to inspect what is relevant, to leave symbolic
+links and likely secrets alone, to skip ignored, generated, dependency, and
+binary content unless it matters, never to modify the Repository or run its
+code, package managers, builds, tests, or anything that reaches the network, and
+to treat what it reads as evidence rather than as instructions. There is no path
+confinement, secret filter, ignore enforcement, or tool sandbox behind those
+instructions, and no dedicated network tool exists. Nothing counts the turns,
+tool calls, time, or tokens an attempt uses: it ends when the agent answers, when
+a request fails, or when you Stop it.
+
+Each attempt reports the file activity its tools observed. **Considered** means a
+path was surfaced and weighed for relevance, **Read** means some of its contents
+reached the agent, and **Excluded** means it was explicitly skipped, with the
+reason and — for a grouped exclusion such as a dependency directory — the count
+where the agent knows it. A path nobody opened is none of the three. This is
+observed activity, not a coverage measure and not evidence that the instructions
+above held.
+
+Stop ends the provider request, the running tool, and the process group of any
+command that tool started, and schedules nothing further. Commands also end when
+the runtime does, whether it was asked to stop, was signalled, or lost the
+desktop host. A runtime wedged badly enough to be killed outright cannot run
+that cleanup, and a command it started can outlive it.
 
 The application owns an OpenRouter adapter using LangChain's `BaseChatModel`
-streaming interface. It stores complete provider payloads before normalization,
-assembles native continuation messages separately from display text, and records
-provider usage snapshots once per request. Returned reasoning and complete
-payloads are inspectable in Agent Chat. This follows the provider's documented
+streaming and tool interfaces. The loop over them is Curator's own, so each turn
+sends the provider its exact native message back, where a prebuilt agent graph
+would rebuild the request from normalized messages instead.
+
+The adapter stores complete provider payloads before normalization, assembles
+native continuation messages separately from display text, and records one usage
+snapshot per request. Returned reasoning, tool calls, tool output, and complete
+payloads are inspectable in Agent Chat. An attempt that calls tools spans several
+requests, and the usage it reports is their sum rather than the last one alone.
+This follows the provider's documented
 [streaming contract](https://openrouter.ai/docs/api_reference/streaming) and
 [reasoning continuation format](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens);
 live provider fidelity probes remain deferred.
@@ -100,7 +139,11 @@ recovery path. A store written by an unsupported schema version, or one that
 cannot be read, is reported with its location and left exactly as it is; Curator
 never resets it for you.
 
-This build uses schema version **3**; earlier version 1/2 stores are unsupported
+Working data an attempt writes lives beside that store, under `agent-work`.
+Nothing resumes across a restart, so whatever an ended attempt left there is
+discarded when Curator starts.
+
+This build uses schema version **4**; earlier version 1-3 stores are unsupported
 and remain untouched. Agent Chat and provider payloads are retained indefinitely
 in this unencrypted app-private store and may contain source content. Current
 catalog state is independent of historical mentions. On restart, unfinished
