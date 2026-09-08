@@ -8,6 +8,7 @@ import { FlowList } from "../components/FlowList";
 import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
 import { describeMoment } from "../format";
 import type { CuratorSession } from "../useCuratorSession";
+import { ScanControls } from "../components/ScanControls";
 import { AgentChat } from "../components/AgentChat";
 
 /**
@@ -83,6 +84,7 @@ export function WorkspacePage({
           </button>
         </header>
 
+        <ScanControls session={session} />
         <FlowList
           flows={session.flows}
           selectedFlowId={selectedFlow?.id ?? null}

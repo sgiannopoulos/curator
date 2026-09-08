@@ -37,6 +37,10 @@ export class ResultApplication {
     // A committed identity returns its original outcome, even if source changed.
     const previous = this.#outcome(execution.id, event.eventId);
     if (previous) return { outcome: previous, applied: false };
+    const current = this.chat.execution(execution.workspaceId, execution.id);
+    if (current.kind === "scan" && (current.scan?.phase !== "discovery" || event.kind !== "create-flow")) {
+      throw new CuratorError("invalid_result", "This Scan accepts only create-flow results during Discovery Pass. Record orientation first; existing-flow mutations are not allowed.");
+    }
     if (event.kind !== "create-flow") this.catalog.requireResultTarget(event);
     const evidence = "citations" in event ? await repository.inspectCitations(event.citations, signal) : [];
     return inTransaction(this.database, () => {
@@ -46,7 +50,7 @@ export class ResultApplication {
       if (replay) return { outcome: replay, applied: false };
       const flow = event.kind === "create-flow"
         ? this.catalog.createFromEvidence(execution.workspaceId,
-          { title: event.title, description: event.description }, evidence)
+          { title: event.title, description: event.description }, evidence, execution.kind === "scan" ? "scan" : "agent")
         : this.catalog.applyExistingResult(event, evidence);
       const outcome: ResultOutcome = {
         executionId: execution.id, eventId: event.eventId, kind: event.kind,
@@ -55,6 +59,7 @@ export class ResultApplication {
       const result = { event, outcome, flow };
       this.database.prepare("INSERT INTO accepted_results (execution_id, event_id, data) VALUES (?, ?, ?)")
         .run(execution.id, event.eventId, JSON.stringify(result));
+      this.chat.recordScanDiscovery(execution);
       this.chat.append(execution, "result", describeResult(event, flow), { result });
       return { outcome, applied: !(event.kind === "review-flow" && event.judgment === "indeterminate") };
     });
@@ -75,9 +80,6 @@ export class ResultApplication {
     const current = this.chat.execution(execution.workspaceId, execution.id);
     if (current.status !== "running" || current.cancellationRequestedAt !== null) {
       throw new CuratorError("invalid_result", "This Agent Execution has stopped accepting results. Start a new request to continue.");
-    }
-    if (current.kind !== "ordinary-chat") {
-      throw new CuratorError("invalid_result", "Chat curation results are not allowed in this execution phase.");
     }
   }
 

@@ -5,6 +5,7 @@ import {
   mutationOriginSchema,
   userFlowStatusSchema,
   type ExistingFlowResult,
+  type MutationOrigin,
   type SourceCitation,
   type UserFlow,
   type UserFlowDraft,
@@ -102,12 +103,12 @@ export class CatalogApplication {
   }
 
   /** Called only inside result acceptance's identity/lifecycle transaction. */
-  createFromEvidence(workspaceId: string, draft: UserFlowDraft, evidence: CitationEvidence[]): UserFlow {
+  createFromEvidence(workspaceId: string, draft: UserFlowDraft, evidence: CitationEvidence[], origin: Extract<MutationOrigin, "agent" | "scan">): UserFlow {
     this.#requireWorkspace(workspaceId);
     const now = new Date().toISOString();
     const flow: UserFlow = {
       id: randomUUID(), workspaceId, ...draft, status: "active",
-      createdAt: now, updatedAt: now, createdBy: "agent", updatedBy: "agent",
+      createdAt: now, updatedAt: now, createdBy: origin, updatedBy: origin,
       citations: [],
     };
     this.#insert(flow);

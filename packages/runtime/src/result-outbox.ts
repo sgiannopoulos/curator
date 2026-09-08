@@ -43,7 +43,7 @@ export function resultOutboxTool(execution: AgentExecution, workingDirectory: st
     }
   }, {
     name: "submit_result",
-    description: `Validate and accept the single JSON event in ${RESULT_OUTBOX_FILE}, written with write_working_file. Use only for catalog curation explicitly requested by the user, including creation, wording/behavior edits, source review and status changes, or permanent deletion. Accepted changes commit immediately; indeterminate review retains the unchanged flow and explanation. Rejected events can be repaired in this conversation.`,
+    description: `Validate and accept the single JSON event in ${RESULT_OUTBOX_FILE}, written with write_working_file. ${execution.kind === "scan" ? "During this Scan, use only for cited create-flow discoveries after recording orientation; existing-flow mutations are not allowed." : "Use only for catalog curation explicitly requested by the user, including creation, wording/behavior edits, source review and status changes, or permanent deletion."} Accepted changes commit immediately; indeterminate review retains the unchanged flow and explanation. Rejected events can be repaired in this conversation.`,
     schema: z.object({}).strict(),
   });
 }

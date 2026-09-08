@@ -3,7 +3,9 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError, agentExecutionSchema, chatEntrySchema,
   type AgentExecution, type ChatEntry, type ProviderObject, type ToolInvocation,
+  type ScanningEffort, type ScanReport, type ScanProgress,
 } from "@curator/shared";
+import { initialScan, advanceScan } from "./scan.js";
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
 import { requireIdle } from "./storage/execution-state.js";
@@ -33,11 +35,14 @@ export class ChatApplication {
     return readExecution(row);
   }
 
-  start(workspaceId: string, text: string, model: string): AgentExecution {
+  start(workspaceId: string, text: string, model: string, effort?: ScanningEffort): AgentExecution {
     return inTransaction(this.database, () => {
       requireIdle(this.database, workspaceId);
+      if (effort && this.database.prepare("SELECT 1 FROM user_flows WHERE workspace_id = ? LIMIT 1").get(workspaceId)) {
+        throw new CuratorError("invalid_request", "Scanning a populated catalog requires the Review Pass, which is not available yet. You can still curate through Agent Chat.");
+      }
       const execution: AgentExecution = {
-        id: randomUUID(), workspaceId, kind: "ordinary-chat", requestId: randomUUID(),
+        id: randomUUID(), workspaceId, kind: effort ? "scan" : "ordinary-chat", scan: effort ? initialScan(effort) : null, requestId: randomUUID(),
         model, status: "running", startedAt: new Date().toISOString(), endedAt: null,
         cancellationRequestedAt: null, reason: null, usage: null, usageRequests: 0,
         usageComplete: false,
@@ -48,6 +53,29 @@ export class ChatApplication {
       this.append(execution, "lifecycle", "Running");
       return execution;
     });
+  }
+
+  reportScan(execution: AgentExecution, report: ScanReport): ScanProgress {
+    return inTransaction(this.database, () => {
+      const current = this.execution(execution.workspaceId, execution.id);
+      if (current.status !== "running" || current.cancellationRequestedAt || !current.scan) {
+        throw new CuratorError("invalid_request", "This attempt is not an active Scan accepting progress.");
+      }
+      const scan = advanceScan(current.scan, report);
+      this.saveExecution({ ...current, scan });
+      this.append(current, "lifecycle", report.kind === "orientation"
+        ? `Discovery Pass · Review Pass skipped for an empty catalog. ${scan.applicationDescription}`
+        : report.kind === "gap-check" ? `Gap check recorded: ${report.summary}`
+          : `Recorded unfinished work: ${report.unfinishedWork.join("; ") || "None recorded"}`);
+      return scan;
+    });
+  }
+
+  /** An accepted discovery after a gap check means that check must be revisited.
+   * Called inside result acceptance's transaction, alongside catalog and history. */
+  recordScanDiscovery(execution: AgentExecution): void {
+    const current = this.execution(execution.workspaceId, execution.id);
+    if (current.scan) this.saveExecution({ ...current, scan: { ...current.scan, gapCheck: null } });
   }
 
   append(execution: AgentExecution, kind: ChatEntry["kind"], text: string,
@@ -102,15 +130,21 @@ export class ChatApplication {
    * entry is rewritten, replaced, or removed, and a later request reads this
    * instead of the exchanges it stands for.
    */
-  appendCompaction(execution: AgentExecution, compaction: Compaction): void {
+  beginCompaction(execution: AgentExecution): number {
+    return this.append(execution, "compaction", "", { unfinished: true });
+  }
+
+  appendCompaction(execution: AgentExecution, turn: number, compaction: Compaction): void {
     inTransaction(this.database, () => {
       const current = this.execution(execution.workspaceId, execution.id);
       if (current.status !== "running") return;
-      this.append(execution, "compaction", compaction.summary, {
-        providerMessage: compaction.message,
-        compaction: compaction.record,
-        usage: compaction.usage,
-      });
+      const row = this.database.prepare("SELECT sequence, data FROM chat_entries WHERE sequence = ? AND execution_id = ?")
+        .get(turn, execution.id);
+      if (!row) throw new Error("Compaction entry is missing.");
+      this.database.prepare("UPDATE chat_entries SET data = ? WHERE sequence = ?").run(JSON.stringify({
+        ...readEntry(row), text: compaction.summary, providerMessage: compaction.message,
+        compaction: compaction.record, usage: compaction.usage, unfinished: false,
+      }), turn);
       this.saveExecution({ ...current, ...this.totals(execution.id) });
     });
   }
@@ -176,7 +210,7 @@ export class ChatApplication {
     const running = this.database.prepare("SELECT data FROM agent_executions WHERE status = 'running'")
       .all().map(readExecution);
     for (const execution of running) {
-      this.finish(execution, "interrupted", "The application runtime ended before this attempt settled. Retained response content is unfinished; send a new message or Retry to start a new attempt.");
+      this.finish(execution, "interrupted", "The application runtime ended before this attempt settled. Retained response content is unfinished; start new work against the current catalog. Scans with retained discoveries require the Review Pass before another Scan.");
     }
   }
 

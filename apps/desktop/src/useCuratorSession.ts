@@ -9,6 +9,7 @@ import {
   type UserFlowDraft,
   type Workspace,
   type ChatSnapshot,
+  type ScanningEffort,
 } from "@curator/shared";
 import type { EvidenceReadingState } from "./components/EvidenceReading";
 import { useAgentChat } from "./useAgentChat";
@@ -50,6 +51,7 @@ export interface CuratorSession {
   chatDraft: string;
   setChatDraft: (draft: string) => void;
   sendMessage: () => void;
+  startScan: (effort: ScanningEffort) => void;
   stopExecution: (executionId: string) => void;
   retryExecution: (executionId: string) => void;
   panels: PanelState;
@@ -399,6 +401,16 @@ export function useCuratorSession(): CuratorSession {
       void run(async () => {
         await sendCommand("chat.send", { workspaceId, text });
         setDrafts((current) => current[workspaceId] === text ? { ...current, [workspaceId]: "" } : current);
+      });
+    },
+    startScan: (effort) => {
+      if (!openedWorkspaceId) return;
+      const workspaceId = openedWorkspaceId;
+      void run(async () => {
+        await sendCommand("scan.start", { workspaceId, effort });
+        setPanels((current) => ({ ...current,
+          [workspaceId]: { ...(current[workspaceId] ?? DEFAULT_PANELS), chatMinimized: false },
+        }));
       });
     },
     stopExecution: (executionId) => {

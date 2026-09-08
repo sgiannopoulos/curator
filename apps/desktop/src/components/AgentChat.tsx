@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentExecution, ChatEntry, ExecutionActivity, FileActivity } from "@curator/shared";
+import { ScanOutcome } from "./ScanOutcome";
 import { sendCommand } from "../bridge";
 import type { CuratorSession } from "../useCuratorSession";
 
@@ -48,6 +49,8 @@ export function AgentChat({ session, focusComposer }: { session: CuratorSession;
           {chat?.executions.map((execution) => (
             <article key={execution.id} className="chat-attempt" aria-label={`Agent Execution, ${execution.status}`}>
               {entriesByExecution.get(execution.id)?.map((entry) => <Entry key={entry.sequence} entry={entry} />)}
+              <ScanOutcome execution={execution} acceptedCount={
+                entriesByExecution.get(execution.id)?.filter((entry) => entry.result?.event.kind === "create-flow").length ?? 0} />
               <Activity execution={execution}
                 activity={chat.activity.find((item) => item.executionId === execution.id) ?? null} />
               {execution.status !== "running" && <ExecutionOutcome execution={execution} session={session} />}
@@ -112,12 +115,12 @@ function Entry({ entry }: { entry: ChatEntry }) {
     return (
       <details className="chat-compaction">
         <summary>
-          Context compacted · {entry.compaction?.replaced ?? 0} earlier exchanges summarized
+          {entry.compaction ? `Context compacted · ${entry.compaction.replaced} earlier exchanges summarized` : "Context compaction · unfinished"}
         </summary>
         <p className="small muted">
-          The model's working context was filling, so these exchanges were summarized for later
-          requests. Nothing was removed from this conversation, and the summary is what the model
-          was given in their place.
+          {entry.compaction
+            ? "These earlier exchanges were summarized for later requests. The original conversation is retained, and this summary was given to the model."
+            : "The summary request has not completed successfully. Its available response and usage are retained; working context has not been replaced."}
         </p>
         <pre>{entry.text}</pre>
       </details>
@@ -146,11 +149,23 @@ function Entry({ entry }: { entry: ChatEntry }) {
 function Activity({ execution, activity }: { execution: AgentExecution; activity: ExecutionActivity | null }) {
   const [paths, setPaths] = useState<FileActivity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    let listening = true;
+    void sendCommand("chat.activity", { workspaceId: execution.workspaceId, executionId: execution.id })
+      .then((result) => { if (listening) { setPaths(result.paths); setError(null); } })
+      .catch((cause: unknown) => {
+        if (listening) setError(cause instanceof Error ? cause.message : String(cause));
+      });
+    return () => { listening = false; };
+  }, [expanded, execution.workspaceId, execution.id, execution.status,
+    activity?.considered, activity?.read, activity?.excluded]);
   if (activity === null) return null;
   return (
     <details className="chat-activity">
       <summary>
-        Files · {activity.considered} considered · {activity.read} read · {activity.excluded} excluded
+        Path records · {activity.considered} considered · {activity.read} read · {activity.excluded} excluded
       </summary>
       <p className="small muted">
         Considered means a path was surfaced and weighed for relevance, Read means some of its
@@ -174,15 +189,10 @@ function Activity({ execution, activity }: { execution: AgentExecution; activity
           )}
         </>
       )}
-      <details onToggle={(event) => {
-        if (!event.currentTarget.open || paths !== null) return;
-        void sendCommand("chat.activity", { workspaceId: execution.workspaceId, executionId: execution.id })
-          .then((result) => { setPaths(result.paths); setError(null); })
-          .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
-      }}>
+      <details onToggle={(event) => setExpanded(event.currentTarget.open)}>
         <summary>Every recorded path</summary>
         {error ? <p>{error}</p> : paths === null ? <p>Loading…</p> : (
-          <pre>{paths.map((path) => `${path.kind}\t${path.path}${path.reason === null ? "" : ` — ${path.reason}`}`).join("\n")}</pre>
+          <pre>{paths.map((path) => `${path.kind}\t${path.path}${path.count === null ? "" : ` (${path.count} grouped paths)`}${path.reason === null ? "" : ` — ${path.reason}`}`).join("\n")}</pre>
         )}
       </details>
     </details>
@@ -193,7 +203,7 @@ function ExecutionOutcome({ execution, session }: { execution: AgentExecution; s
   const [frames, setFrames] = useState<unknown[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const retriable = ["failed", "cancelled", "interrupted"].includes(execution.status);
+  const retriable = execution.kind === "ordinary-chat" && ["failed", "cancelled", "interrupted"].includes(execution.status);
   return (
     <div className="chat-outcome">
       <details><summary>Request details · {execution.status}</summary>

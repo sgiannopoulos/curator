@@ -34,7 +34,8 @@ export interface AgentSession {
   checkpoint(turn: number, state: ProviderCheckpoint): void;
   completeTurn(turn: number): void;
   toolResult(tool: ToolInvocation, output: string): void;
-  compact(compaction: Compaction): void;
+  beginCompaction(): number;
+  compact(turn: number, compaction: Compaction): void;
 }
 
 /**
@@ -237,14 +238,15 @@ async function fitWorkingContext(configuration: OpenRouterConfiguration, session
     if (batch.length === 0) {
       throw new Error("This request does not fit the model's working context, and no earlier exchange can be summarized to make room. The conversation is retained; start a new message so this attempt begins from current state.");
     }
+    const turn = session.beginCompaction();
     const summary = await runRequest(configuration, [], summaryRequest(batch), signal,
-      (frame) => session.record(frame), () => {});
+      (frame) => session.record(frame), (checkpoint) => session.checkpoint(turn, checkpoint));
     if (summary.text.trim() === "") {
       throw new Error("The model returned an empty summary while compacting this conversation, so nothing was replaced.");
     }
-    session.compact(compactionOf(batch, summary.text, summary.usage));
-    // Stop during the summary leaves the event unrecorded, so end here as
-    // cancelled rather than reading the unchanged context as a failure.
+    session.compact(turn, compactionOf(batch, summary.text, summary.usage));
+    // Stop ends this attempt; any checkpointed summary response and usage
+    // remain in chat even when working context was not replaced.
     signal.throwIfAborted();
 
     context = session.context();

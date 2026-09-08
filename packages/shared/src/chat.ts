@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { scanProgressSchema } from "./scan.js";
 import { acceptedResultSchema } from "./result.js";
 
 export const providerObjectSchema = z.record(z.string(), z.json());
@@ -8,7 +9,8 @@ export const executionStatusSchema = z.enum([
 export const agentExecutionSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
-  kind: z.literal("ordinary-chat"),
+  kind: z.enum(["ordinary-chat", "scan"]),
+  scan: scanProgressSchema.nullable(),
   requestId: z.string(),
   model: z.string(),
   status: executionStatusSchema,

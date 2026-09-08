@@ -24,7 +24,7 @@ Each ticket is a separate local issue marked `ready-for-agent`, with its own end
 
 ## Execution order
 
-Implementation progress: tickets 01 through 08 are implemented and resolved.
+Implementation progress: tickets 01 through 09 are implemented and resolved.
 Tickets 01 through 05 landed in commits `a17d36d`, `1fb618a`, `e892238`, `a78231c` and `60a9a4a`. Tickets 01 and
 02 were resolved after the fact, by checking their criteria against the shipped
 code; each records that in its comments. Ticket 06 adds cited creation through Agent Chat,
@@ -32,8 +32,10 @@ atomic result acceptance, and the Generate a flow composer. Ticket 07 extends th
 path to wording and behavior edits, source review and status changes, and permanent
 deletion through Agent Chat. Ticket 08 reads each accepted citation against the
 current Repository and reports it Unchanged, Stale, or Unavailable without touching
-the flow's status. Tickets 09 (empty-catalog Scan) and 12 (unavailable Repositories
-and Relink) are the next available slices.
+the flow's status. Ticket 09 adds explicit empty-catalog Scans at Quick, Standard,
+and Maximum effort, with durable orientation/discovery progress, immediate cited
+results, and a recorded gap check. Tickets 10 (Review Pass before discovery) and
+12 (unavailable Repositories and Relink) are the next available slices.
 
 Work an uncompleted ticket only when all its blockers are complete; among available tickets, prefer the lowest number. Initially, [01: Open and reopen a Workspace](issues/01-open-and-reopen-a-workspace.md) is the only unblocked ticket.
 

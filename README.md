@@ -12,7 +12,8 @@ questions about it, and long conversations continue through context compaction.
 Explicit creation requests now add source-cited User Flows through Agent Chat.
 Chat can also edit, reconsider, change the status of, and permanently delete
 existing flows, and each citation reports whether its source has changed or
-become unreadable. Scans arrive in later work.
+become unreadable. Empty catalogs can now be scanned at Quick, Standard, or
+Maximum effort, with cited discoveries arriving in the same Agent Chat.
 
 ## Prerequisites
 
@@ -94,6 +95,40 @@ an accepted identity returns the original outcome without another mutation.
 Stop, failure, and restart keep all committed changes, including deletions. Deleted flows stay deleted
 in the current catalog; later discovery may create a new identity for the same
 behavior.
+
+## Scanning an empty catalog
+
+Choose **Scanning Effort** (Standard by default), then **Scan**. The Scan restores
+Agent Chat while keeping any unsent draft. Effort changes the requested detail:
+Quick combines minor variants around principal goals and happy paths; Standard
+adds alternatives, validation, permissions, and state changes; Maximum seeks
+uncommon paths, edges, recovery, and materially distinct outcomes. All three use
+the same configured model, tools, and execution loop, with no effort-based
+resource ceilings or promise of complete coverage.
+
+The agent inventories the Repository, reads relevant implementation artifacts,
+and records an application description and human actors/interfaces. An empty
+catalog skips the Review Pass and enters Discovery Pass. Each accepted discovery
+appears immediately as an Active User Flow with Scan origin and supporting
+citations. The agent compares candidates with the current catalog to consolidate
+behavior; result identities prevent duplicate acceptance of the same event.
+Before normal completion it must record a gap check across the identified
+actors/interfaces. This is a quality prompt, not proof of coverage.
+
+The Scan Record keeps its progress inside the durable Agent Execution, with
+lifecycle, model, timestamps, usage, chat entries, path activity, and accepted
+results associated by that same execution identity. Its phase and recorded
+unfinished work survive compaction. Agent Chat shows the basic outcome, accepted
+discovery count, and last recorded remaining work. Stop, failures, and restart
+preserve committed discoveries and history; an unfinished attempt becomes
+Interrupted and never resumes. Compaction requests retain their available usage
+and response even when the summary fails, and incomplete totals stay marked so.
+
+Scans currently require an empty catalog, enforced when the execution starts.
+This includes later attempts after partial discovery: populated catalogs need
+the complete Review Pass, which arrives in ticket 10. Ordinary chat remains
+available for explicit curation. The Scan-history browser and linked Scan Retry
+arrive in ticket 11.
 
 ## Source Citation freshness
 
@@ -227,7 +262,7 @@ Working data an attempt writes lives beside that store, under `agent-work`.
 Nothing resumes across a restart, so whatever an ended attempt left there is
 discarded when Curator starts.
 
-This build uses schema version **6**; earlier version 1-5 stores are unsupported
+This build uses schema version **7**; earlier version 1-6 stores are unsupported
 and remain untouched. Agent Chat and provider payloads are retained indefinitely
 in this unencrypted app-private store and may contain source content. Current
 catalog state is independent of historical mentions. On restart, unfinished
