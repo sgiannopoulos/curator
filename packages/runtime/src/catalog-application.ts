@@ -4,6 +4,7 @@ import {
   CuratorError,
   mutationOriginSchema,
   userFlowStatusSchema,
+  type ExistingFlowResult,
   type SourceCitation,
   type UserFlow,
   type UserFlowDraft,
@@ -81,20 +82,60 @@ export class CatalogApplication {
     const flow: UserFlow = {
       id: randomUUID(), workspaceId, ...draft, status: "active",
       createdAt: now, updatedAt: now, createdBy: "agent", updatedBy: "agent",
-      citations: evidence.map(({ contentFingerprint: _fingerprint, ...citation }) => ({
-        ...citation, id: randomUUID(), acceptedAt: now,
-      })),
+      citations: [],
     };
     this.#insert(flow);
-    for (const [position, citation] of flow.citations.entries()) {
+    flow.citations = this.#insertEvidence(flow.id, evidence, now);
+    return flow;
+  }
+
+  /** Result references are scoped to the current catalog, never to history. */
+  requireResultTarget(event: ExistingFlowResult): UserFlow {
+    const [flow] = this.#read(event.workspaceId, event.flowId);
+    if (!flow) {
+      throw new CuratorError("invalid_result", `flowId ${event.flowId} is not a current User Flow in this Workspace. Use an identity from the current catalog.`);
+    }
+    return flow;
+  }
+
+  /** Called only inside result acceptance's identity/lifecycle transaction. */
+  applyExistingResult(event: ExistingFlowResult, evidence: CitationEvidence[]): UserFlow {
+    const flow = this.requireResultTarget(event);
+    if (event.kind === "delete-flow") {
+      this.#database.prepare("DELETE FROM user_flows WHERE id = ?").run(flow.id);
+      return flow;
+    }
+    if (event.kind === "review-flow" && event.judgment === "indeterminate") return flow;
+
+    const now = new Date().toISOString();
+    const updated: UserFlow = { ...flow, updatedAt: now, updatedBy: "agent" };
+    if (event.kind === "edit-wording" || event.kind === "edit-behavior") {
+      updated.title = event.title;
+      updated.description = event.description;
+    } else {
+      updated.status = event.judgment === "supported" ? "active" : "outdated";
+    }
+    if (event.kind !== "edit-wording") {
+      this.#database.prepare("DELETE FROM source_citations WHERE user_flow_id = ?").run(flow.id);
+      updated.citations = this.#insertEvidence(flow.id, evidence, now);
+    }
+    this.#database.prepare(`UPDATE user_flows
+      SET title = ?, description = ?, status = ?, updated_at = ?, updated_by = ? WHERE id = ?`)
+      .run(updated.title, updated.description, updated.status, now, "agent", flow.id);
+    return updated;
+  }
+
+  #insertEvidence(flowId: string, evidence: CitationEvidence[], acceptedAt: string): SourceCitation[] {
+    return evidence.map(({ contentFingerprint, ...location }, position) => {
+      const citation: SourceCitation = { ...location, id: randomUUID(), acceptedAt };
       this.#database.prepare(`INSERT INTO source_citations
         (id, user_flow_id, path, start_line, end_line, explanation, content_fingerprint, accepted_at, position)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        citation.id, flow.id, citation.path, citation.startLine, citation.endLine,
-        citation.explanation, evidence[position]!.contentFingerprint, now, position,
+        citation.id, flowId, citation.path, citation.startLine, citation.endLine,
+        citation.explanation, contentFingerprint, acceptedAt, position,
       );
-    }
-    return flow;
+      return citation;
+    });
   }
 
   #insert(flow: UserFlow): void {

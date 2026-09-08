@@ -43,7 +43,7 @@ export function resultOutboxTool(execution: AgentExecution, workingDirectory: st
     }
   }, {
     name: "submit_result",
-    description: `Validate and accept the single JSON event in ${RESULT_OUTBOX_FILE}, written with write_working_file. Use only for creation explicitly requested by the user. Rejected events can be repaired in this conversation; accepted events immediately create a cited Active User Flow.`,
+    description: `Validate and accept the single JSON event in ${RESULT_OUTBOX_FILE}, written with write_working_file. Use only for catalog curation explicitly requested by the user, including creation, wording/behavior edits, source review and status changes, or permanent deletion. Accepted changes commit immediately; indeterminate review retains the unchanged flow and explanation. Rejected events can be repaired in this conversation.`,
     schema: z.object({}).strict(),
   });
 }

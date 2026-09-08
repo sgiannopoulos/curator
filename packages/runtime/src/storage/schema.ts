@@ -2,10 +2,10 @@
  * The application's schema. It is created once, when the store is new, and
  * there is no migration, backup, downgrade, or recovery framework: a store
  * written by any other schema version is reported to the user and left
- * untouched. A change to these tables raises the version, and existing stores
+ * untouched. A change to tables or their stored payload contracts raises the version, and existing stores
  * then report as unsupported rather than being upgraded in place.
  */
-export const SUPPORTED_SCHEMA_VERSION = 5;
+export const SUPPORTED_SCHEMA_VERSION = 6;
 
 export const SCHEMA_STATEMENTS = `
 CREATE TABLE workspaces (

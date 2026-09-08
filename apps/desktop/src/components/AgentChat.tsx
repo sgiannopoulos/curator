@@ -79,8 +79,13 @@ function Entry({ entry }: { entry: ChatEntry }) {
         <summary>{entry.kind === "result" ? entry.text : "Result rejected · repair requested"}</summary>
         {entry.result ? <>
           <p>{entry.result.flow.description}</p>
-          <p className="small muted">Created Active with {entry.result.flow.citations.length} supporting source(s).
-            This records the accepted result; the catalog shows the flow's current state.</p>
+          <p className="small muted">
+            {entry.result.event.kind === "delete-flow"
+              ? "This is the flow as it was before permanent deletion. It is no longer in the catalog."
+              : "This records the flow when the result was accepted; the catalog shows its current state."}
+            {" "}Recorded status: {entry.result.flow.status === "active" ? "Active" : "Outdated"}.
+            {" "}{entry.result.flow.citations.length} retained source citation(s).
+          </p>
           <details><summary>Accepted result details</summary><pre>{JSON.stringify(entry.result, null, 2)}</pre></details>
         </> : <pre>{entry.text}</pre>}
       </details>

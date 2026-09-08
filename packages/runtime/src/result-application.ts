@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError, acceptedResultSchema, resultEventSchema,
-  type AgentExecution, type ResultOutcome,
+  type AgentExecution, type ResultEvent, type ResultOutcome, type UserFlow,
 } from "@curator/shared";
 import type { CatalogApplication } from "./catalog-application.js";
 import type { ChatApplication } from "./chat-application.js";
@@ -37,23 +37,26 @@ export class ResultApplication {
     // A committed identity returns its original outcome, even if source changed.
     const previous = this.#outcome(execution.id, event.eventId);
     if (previous) return { outcome: previous, applied: false };
-    const evidence = await repository.inspectCitations(event.citations, signal);
+    if (event.kind !== "create-flow") this.catalog.requireResultTarget(event);
+    const evidence = "citations" in event ? await repository.inspectCitations(event.citations, signal) : [];
     return inTransaction(this.database, () => {
       signal.throwIfAborted();
       this.#requireActive(execution);
       const replay = this.#outcome(execution.id, event.eventId);
       if (replay) return { outcome: replay, applied: false };
-      const flow = this.catalog.createFromEvidence(execution.workspaceId,
-        { title: event.title, description: event.description }, evidence);
+      const flow = event.kind === "create-flow"
+        ? this.catalog.createFromEvidence(execution.workspaceId,
+          { title: event.title, description: event.description }, evidence)
+        : this.catalog.applyExistingResult(event, evidence);
       const outcome: ResultOutcome = {
         executionId: execution.id, eventId: event.eventId, kind: event.kind,
-        flowId: flow.id, acceptedAt: flow.createdAt,
+        flowId: flow.id, acceptedAt: new Date().toISOString(),
       };
       const result = { event, outcome, flow };
       this.database.prepare("INSERT INTO accepted_results (execution_id, event_id, data) VALUES (?, ?, ?)")
         .run(execution.id, event.eventId, JSON.stringify(result));
-      this.chat.append(execution, "result", `Created User Flow: ${flow.title}`, { result });
-      return { outcome, applied: true };
+      this.chat.append(execution, "result", describeResult(event, flow), { result });
+      return { outcome, applied: !(event.kind === "review-flow" && event.judgment === "indeterminate") };
     });
   }
 
@@ -74,7 +77,7 @@ export class ResultApplication {
       throw new CuratorError("invalid_result", "This Agent Execution has stopped accepting results. Start a new request to continue.");
     }
     if (current.kind !== "ordinary-chat") {
-      throw new CuratorError("invalid_result", "create-flow is not allowed in this execution phase.");
+      throw new CuratorError("invalid_result", "Chat curation results are not allowed in this execution phase.");
     }
   }
 
@@ -82,5 +85,17 @@ export class ResultApplication {
     const row = this.database.prepare("SELECT data FROM accepted_results WHERE execution_id = ? AND event_id = ?")
       .get(executionId, eventId);
     return row ? acceptedResultSchema.parse(JSON.parse(readText(row, "data"))).outcome : null;
+  }
+}
+
+function describeResult(event: ResultEvent, flow: UserFlow): string {
+  switch (event.kind) {
+    case "create-flow": return `Created User Flow: ${flow.title}`;
+    case "edit-wording": return `Edited wording of User Flow: ${flow.title}. Existing citations retained.`;
+    case "edit-behavior": return `Updated behavior of User Flow: ${flow.title}. Supporting citations replaced.`;
+    case "delete-flow": return `Permanently deleted User Flow: ${flow.title}. Historical mentions remain; later rediscovery may create a new identity.`;
+    case "review-flow": return event.judgment === "indeterminate"
+      ? `Reconsidered User Flow: ${flow.title}. Left unchanged: ${event.explanation}`
+      : `Reviewed User Flow: ${flow.title}. ${event.judgment === "supported" ? "Active" : "Outdated"} with fresh supporting citations.`;
   }
 }

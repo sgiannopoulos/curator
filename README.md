@@ -10,7 +10,8 @@ curation, and persistent Agent Chat with OpenRouter streaming, Stop, and Retry.
 The agent reads the Repository with generic file and shell tools to answer
 questions about it, and long conversations continue through context compaction.
 Explicit creation requests now add source-cited User Flows through Agent Chat.
-Editing existing flows through chat and Scans arrive in later work.
+Chat can also edit, reconsider, change the status of, and permanently delete
+existing flows. Scans arrive in later work.
 
 ## Prerequisites
 
@@ -65,19 +66,31 @@ Chat, preserving any unsent draft and restoring the composer. Review it and
 press Send to start. Accepted flows appear immediately as Active with an
 agent-assisted origin and display-only Source Citations. The agent is prompted
 to favor reachable human behavior and precision over speculative quantity;
-questions alone do not authorize creation, and chat cannot yet edit or remove
-existing flows.
+questions alone do not authorize catalog changes. Explicit requests to edit,
+reconsider, mark Outdated, reactivate, or delete existing flows apply directly
+within the requested scope. If the target or action is ambiguous, the agent is
+prompted to ask for clarification and end its attempt before changing anything.
+
+Wording-only agent edits retain status and existing citations/fingerprints.
+Material behavior edits require newly inspected supporting citations and preserve
+status; source review makes or keeps a flow Active when supported or Outdated
+when contradicted, replacing its evidence. An inconclusive reconsideration keeps
+every field unchanged and records why. Agent deletion needs no additional
+confirmation or new citation, and removes the current flow and its citations
+permanently while retaining historical mentions. Manual Save still preserves
+citations/status, manual reactivation remains the user's own judgment, and
+manual deletion still requires confirmation.
 
 The agent writes one JSON result event to its execution-owned
 `outbox/result.json`, then submits it for validation. Curator checks its schema,
-execution and Workspace identities, allowed result kind, lifecycle, citation
+execution and Workspace identities, referenced flow identities, allowed result kind/transition, lifecycle, citation
 paths, source existence, and line bounds. Citation checking is result integrity,
 not tool confinement or proof of evidence sufficiency. Invalid events return
 precise errors in the same conversation for repair without reserving their
-identities. Acceptance commits the result identity, historical result, new flow,
-citations with file-content fingerprints, and chat event together. A replay of
-an accepted identity returns the original outcome without another creation.
-Stop, failure, and restart keep committed creations. Deleted flows stay deleted
+identities. Acceptance commits the result identity, historical result, catalog and
+citation changes with any fresh file-content fingerprints, and chat event together. A replay of
+an accepted identity returns the original outcome without another mutation.
+Stop, failure, and restart keep all committed changes, including deletions. Deleted flows stay deleted
 in the current catalog; later discovery may create a new identity for the same
 behavior.
 
@@ -189,7 +202,7 @@ Working data an attempt writes lives beside that store, under `agent-work`.
 Nothing resumes across a restart, so whatever an ended attempt left there is
 discarded when Curator starts.
 
-This build uses schema version **5**; earlier version 1-4 stores are unsupported
+This build uses schema version **6**; earlier version 1-5 stores are unsupported
 and remain untouched. Agent Chat and provider payloads are retained indefinitely
 in this unencrypted app-private store and may contain source content. Current
 catalog state is independent of historical mentions. On restart, unfinished
