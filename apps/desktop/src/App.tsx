@@ -22,7 +22,7 @@ export function App() {
           onOpenWorkspace={session.openWorkspace}
         />
       ) : (
-        <WorkspacePage workspace={session.workspace} session={session} />
+        <WorkspacePage key={session.workspace.id} workspace={session.workspace} session={session} />
       )}
     </>
   );

@@ -11,7 +11,7 @@ import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
  * correlated request and publishes ordered events describing new state. Both
  * sides validate every message with the schemas below.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 const emptyPayloadSchema = z.object({}).strict();
 
@@ -115,6 +115,13 @@ export const commandContracts = {
       confirmedSameRepository: z.literal(true),
     }).strict(),
     result: workspaceSchema,
+  },
+  "workspace.remove": {
+    payload: z.object({
+      workspaceId: z.string().min(1),
+      confirmedPermanentDeletion: z.literal(true),
+    }).strict(),
+    result: z.object({ workspaceId: z.string().min(1) }),
   },
   "catalog.list": {
     payload: z.object({ workspaceId: z.string().min(1) }).strict(),

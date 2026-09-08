@@ -6,6 +6,7 @@ import { FlowEditorDialog } from "../components/FlowEditorDialog";
 import { GenerateFlowDialog } from "../components/GenerateFlowDialog";
 import { FlowList } from "../components/FlowList";
 import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
+import { RemoveWorkspaceDialog } from "../components/RemoveWorkspaceDialog";
 import { RelinkDialog } from "../components/RelinkDialog";
 import { describeMoment } from "../format";
 import type { CuratorSession } from "../useCuratorSession";
@@ -34,6 +35,7 @@ export function WorkspacePage({
   const [focusAttempt, setFocusAttempt] = useState<{ executionId: string; token: number } | null>(null);
   const [showingOptions, setShowingOptions] = useState(false);
   const [relinking, setRelinking] = useState(false);
+  const [removingWorkspace, setRemovingWorkspace] = useState(false);
   const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
   const [removing, setRemoving] = useState<UserFlow | null>(null);
   const [futurePreview, setFuturePreview] = useState<string | null>(null);
@@ -202,6 +204,9 @@ export function WorkspacePage({
       {relinking && <RelinkDialog workspace={workspace} session={session}
         onClose={() => setRelinking(false)} />}
 
+      {removingWorkspace && <RemoveWorkspaceDialog workspace={workspace} session={session}
+        onClose={() => setRemovingWorkspace(false)} />}
+
       <FlowEditorDialog
         open={editing !== "none"}
         flow={editing === "existing" ? selectedFlow : null}
@@ -288,9 +293,13 @@ export function WorkspacePage({
           >
             Scan history
           </button>
+          <button className="destructive" disabled={working || session.chat === null} onClick={() => {
+            setShowingOptions(false);
+            setRemovingWorkspace(true);
+          }}>Delete Workspace…</button>
         </p>
         {session.chat?.executions.some((execution) => execution.status === "running") &&
-          <p className="small muted">Stop the active Agent Execution or wait for it to finish before relinking.</p>}
+          <p className="small muted">Stop the active Agent Execution or wait for it to finish before relinking or deleting this Workspace.</p>}
       </Dialog>
     </div>
   );

@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { lstatSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError,
@@ -15,7 +18,8 @@ import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
 import { inspectCitationFreshness, repositoryAvailability } from "./repository-access.js";
 import { readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
-import { requireIdle } from "./storage/execution-state.js";
+import { requireIdle, reserveWorkspaceDeletion } from "./storage/execution-state.js";
+import { describeCause } from "./logging.js";
 
 const WORKSPACE_COLUMNS =
   "id, repository_locator, display_name, created_at, last_opened_at";
@@ -39,7 +43,7 @@ export class WorkspaceApplication {
   readonly activity: FileActivityLog;
   readonly results: ResultApplication;
 
-  constructor(database: DatabaseSync) {
+  constructor(database: DatabaseSync, private readonly workingRoot: string) {
     this.#database = database;
     this.catalog = new CatalogApplication(database);
     this.chat = new ChatApplication(database, this.catalog);
@@ -141,6 +145,55 @@ export class WorkspaceApplication {
         .run(locator, displayName, now, workspaceId);
       return { ...workspace, repositoryLocator: locator, displayName, lastOpenedAt: now };
     });
+  }
+
+  /**
+   * The Workspace is the retention boundary. Its foreign keys cascade through
+   * the catalog, evidence, executions, chat, provider frames, activity and
+   * accepted results (including Scan history and idempotency records).
+   *
+   * Reserve the idle Workspace while asynchronous cleanup lets other Workspaces
+   * keep running. Remove working files first: if cleanup or COMMIT fails, the
+   * retained Workspace and execution identities allow another deletion attempt. Files already removed
+   * cannot be rolled back, but no retained catalog or history is lost on failure.
+   */
+  async remove(workspaceId: string): Promise<string> {
+    let release: (() => void) | undefined;
+    try {
+      const executions = inTransaction(this.#database, () => {
+        this.#require(workspaceId);
+        release = reserveWorkspaceDeletion(this.#database, workspaceId);
+        return this.#database
+          .prepare("SELECT id FROM agent_executions WHERE workspace_id = ?")
+          .all(workspaceId);
+      });
+      try {
+        // Only app-owned execution directories are targets, never a Repository
+        // Locator or a path supplied by the caller. Refuse a redirected root;
+        // recursive removal of a child symlink removes the link itself.
+        const root = lstatSync(this.workingRoot, { throwIfNoEntry: false });
+        if (root && (!root.isDirectory() || root.isSymbolicLink())) {
+          throw new Error("The application working-data directory is not a regular directory.");
+        }
+        for (const row of executions) {
+          const id = readText(row, "id");
+          if (id === "" || id === "." || id === ".." || basename(id) !== id) {
+            throw new Error("An execution has an invalid working-directory identity.");
+          }
+          await rm(join(this.workingRoot, id), { recursive: true, force: true });
+        }
+      } catch (cause) {
+        throw new CuratorError("storage_unreadable",
+          `Curator could not finish deleting this Workspace's working data at ${this.workingRoot}. Its catalog and history were retained; some working files may already have been removed. Try deletion again after resolving the filesystem error.`,
+          describeCause(cause));
+      }
+      return inTransaction(this.#database, () => {
+        this.#database.prepare("DELETE FROM workspaces WHERE id = ?").run(workspaceId);
+        return workspaceId;
+      });
+    } finally {
+      release?.();
+    }
   }
 
   /**

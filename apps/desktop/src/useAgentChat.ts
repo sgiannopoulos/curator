@@ -7,7 +7,12 @@ export function useAgentChat(workspaceId: string | null, ready: boolean, recover
   const [state, setState] = useState<{ workspaceId: string; chat: ChatSnapshot } | null>(null);
   const [error, setError] = useState<ApplicationError | null>(null);
   useEffect(() => {
-    if (!ready || workspaceId === null) return;
+    if (workspaceId === null) {
+      setState(null);
+      setError(null);
+      return;
+    }
+    if (!ready) return;
     let listening = true;
     let reading = false;
     let dirty = false;

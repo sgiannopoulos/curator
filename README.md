@@ -29,6 +29,15 @@ unavailable during an active Agent Execution. Source access is checked when the
 Workspace opens, when the window regains focus, and on **Check again** in the
 unavailable-Repository notice; every execution start checks access again.
 
+**Workspace options → Delete Workspace…** asks for confirmation before permanently
+removing its catalog and evidence, complete Agent Chat, Scan history, execution
+data and working files. Deletion is unavailable during an active Agent Execution.
+It returns to the start page, clears that Workspace's selection and drafts, and
+keeps the Repository, application-wide configuration and other Workspaces.
+There is no trash or undo: opening the Repository again creates an empty Workspace.
+Cleanup failures are reported without claiming a completed purge; retained catalog
+and history remain available if deletion cannot commit.
+
 ## Prerequisites
 
 Curator targets the machine described in the development contract, and nothing

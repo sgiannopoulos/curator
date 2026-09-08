@@ -43,6 +43,7 @@ export interface CuratorSession {
   openWorkspace: (workspaceId: string) => void;
   closeWorkspace: () => void;
   relinkRepository: (repositoryLocator: string) => Promise<boolean>;
+  removeWorkspace: () => Promise<boolean>;
   recheckRepository: () => void;
   /** Each resolves true only once the runtime has committed the change. */
   addFlow: (draft: UserFlowDraft) => Promise<boolean>;
@@ -215,10 +216,15 @@ export function useCuratorSession(): CuratorSession {
     };
   }, [ready, openedWorkspaceId, catchUp, report]);
 
-  // Relink updates the current locator too, including after event catch-up.
+  // Reconcile deletion and Relink from the same authoritative list, including
+  // after event catch-up. Deleted Workspaces lose their incidental state too.
   useEffect(() => {
+    const retained = new Set(workspaces.map((item) => item.id));
     setWorkspace((current) => current === null ? null
-      : workspaces.find((item) => item.id === current.id) ?? current);
+      : workspaces.find((item) => item.id === current.id) ?? null);
+    setDrafts((current) => retainWorkspaces(current, retained));
+    setPanels((current) => retainWorkspaces(current, retained));
+    setSelectionByWorkspace((current) => retainWorkspaces(current, retained));
   }, [workspaces]);
 
   const selectedFlowId = openedWorkspaceId
@@ -412,6 +418,11 @@ export function useCuratorSession(): CuratorSession {
       // Also refresh when the selected locator was unchanged.
       setCatchUp((count) => count + 1);
     }),
+    removeWorkspace: () => mutate(async (workspaceId) => {
+      await sendCommand("workspace.remove", { workspaceId, confirmedPermanentDeletion: true });
+      setWorkspace((current) => current?.id === workspaceId ? null : current);
+      setWorkspaces((current) => current.filter((item) => item.id !== workspaceId));
+    }),
     recheckRepository: () => setCatchUp((count) => count + 1),
     addFlow,
     saveFlow,
@@ -459,6 +470,10 @@ export function useCuratorSession(): CuratorSession {
       }));
     },
   };
+}
+
+function retainWorkspaces<T>(state: Record<string, T>, retained: Set<string>): Record<string, T> {
+  return Object.fromEntries(Object.entries(state).filter(([id]) => retained.has(id)));
 }
 
 /**

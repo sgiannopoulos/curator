@@ -45,11 +45,11 @@ function main(): void {
     return;
   }
 
-  const workspaces = new WorkspaceApplication(database);
   // Working data belongs to one attempt. Nothing resumes across a restart, so
   // what an ended attempt left behind is discarded rather than replayed.
   const workingRoot = join(dataDirectory, "agent-work");
   rmSync(workingRoot, { recursive: true, force: true });
+  const workspaces = new WorkspaceApplication(database, workingRoot);
   const executions = new ExecutionCoordinator(workspaces, settings, workingRoot, (workspaceId) => {
     transport.publish("chat.changed", { workspaceId });
   }, (workspaceId) => {
@@ -89,6 +89,11 @@ function main(): void {
     transport.publish("workspaces.changed", { workspaces: workspaces.list() });
     transport.publish("chat.changed", { workspaceId: workspace.id });
     return workspace;
+  });
+  transport.handle("workspace.remove", async ({ workspaceId }) => {
+    const removed = await workspaces.remove(workspaceId);
+    transport.publish("workspaces.changed", { workspaces: workspaces.list() });
+    return { workspaceId: removed };
   });
 
   const catalog = workspaces.catalog;
