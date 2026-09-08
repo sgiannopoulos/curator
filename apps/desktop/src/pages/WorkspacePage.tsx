@@ -84,7 +84,6 @@ export function WorkspacePage({
           </button>
         </header>
 
-        <ScanControls session={session} />
         <FlowList
           flows={session.flows}
           selectedFlowId={selectedFlow?.id ?? null}
@@ -153,6 +152,7 @@ export function WorkspacePage({
             onFuturePreview={setFuturePreview}
           />
         )}
+        <ScanControls session={session} />
       </section>
 
       <GenerateFlowDialog open={generating} disabled={generationDisabled}
