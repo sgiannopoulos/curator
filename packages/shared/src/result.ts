@@ -67,6 +67,18 @@ export const acceptedResultSchema = z.object({
   flow: userFlowSchema,
 });
 
+/** What one accepted result did, named for a reader scanning a list of them. */
+export function describeResultKind(event: ResultEvent): string {
+  switch (event.kind) {
+    case "create-flow": return "Created";
+    case "edit-wording": return "Edited wording";
+    case "edit-behavior": return "Updated behavior";
+    case "delete-flow": return "Deleted permanently";
+    case "review-flow": return event.judgment === "supported" ? "Reviewed · Supported"
+      : event.judgment === "contradicted" ? "Reviewed · Contradicted" : "Reviewed · Indeterminate";
+  }
+}
+
 export type CitationDraft = z.infer<typeof citationDraftSchema>;
 export type ResultEvent = z.infer<typeof resultEventSchema>;
 export type ExistingFlowResult = z.infer<typeof existingFlowResultSchema>;

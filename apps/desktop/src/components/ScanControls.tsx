@@ -4,8 +4,7 @@ import type { CuratorSession } from "../useCuratorSession";
 
 export function ScanControls({ session }: { session: CuratorSession }) {
   const [effort, setEffort] = useState<ScanningEffort>("standard");
-  const disabled = !session.ready || session.working || session.chat === null ||
-    session.chat.blockedReason !== null;
+  const disabled = session.agentBlocked;
   const existing = session.flows.length;
   const guidance = existing === 0 ? null
     : `A Scan reviews ${existing === 1 ? "the existing User Flow" : `all ${existing} existing User Flows`} against the source before discovering more. It never rewrites titles or descriptions you curated.`;

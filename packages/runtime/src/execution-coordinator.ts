@@ -2,7 +2,8 @@ import { accessSync, constants, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   CuratorError,
-  type AgentExecution, type ChatSnapshot, type FileActivity, type ProviderObject, type ScanningEffort,
+  type AgentExecution, type ChatSnapshot, type FileActivity, type ProviderObject,
+  type ScanningEffort, type ScanRecord,
 } from "@curator/shared";
 import { renderPrompt } from "./prompts.js";
 import { scanInstructions, scanProgressTool } from "./scan.js";
@@ -36,6 +37,29 @@ export class ExecutionCoordinator {
     };
   }
 
+  /**
+   * Every retained Scan attempt in this Workspace, newest first. Each record is
+   * read from what already persists it, so reopening the application, or a
+   * reload while work runs, shows the same history without touching the
+   * running execution.
+   */
+  scanHistory(workspaceId: string): ScanRecord[] {
+    const activity = this.workspaces.activity.summary(workspaceId);
+    const entries = this.workspaces.chat.entries(workspaceId);
+    return this.workspaces.chat.executions(workspaceId)
+      .filter((execution) => execution.scan !== null)
+      .map((execution) => ({
+        execution,
+        results: this.workspaces.results.acceptedResults(execution),
+        // An attempt whose tools reported nothing has an empty ledger rather
+        // than no ledger: nothing observed is not nothing to say.
+        activity: activity.find((item) => item.executionId === execution.id) ??
+          { executionId: execution.id, considered: 0, read: 0, excluded: 0, exclusions: [] },
+        entryCount: entries.filter((entry) => entry.executionId === execution.id).length,
+      }))
+      .reverse();
+  }
+
   /** Named by execution, so an identity from another Workspace is refused. */
   activityPaths(workspaceId: string, executionId: string): FileActivity[] {
     const execution = this.workspaces.chat.execution(workspaceId, executionId);
@@ -46,15 +70,16 @@ export class ExecutionCoordinator {
     return this.launch(workspaceId, text);
   }
 
-  startScan(workspaceId: string, effort: ScanningEffort): AgentExecution {
-    return this.launch(workspaceId, renderPrompt("scan-request", { effort }), effort);
+  startScan(workspaceId: string, effort: ScanningEffort, retryOf: string | null = null): AgentExecution {
+    return this.launch(workspaceId, renderPrompt("scan-request", { effort }), effort, retryOf);
   }
 
-  private launch(workspaceId: string, text: string, effort?: ScanningEffort): AgentExecution {
+  private launch(workspaceId: string, text: string, effort?: ScanningEffort,
+    retryOf: string | null = null): AgentExecution {
     const blocked = this.blockedReason(workspaceId);
     const configuration = this.settings.configuration;
     if (blocked || !configuration) throw new CuratorError("agent_unavailable", blocked ?? "OpenRouter Configuration is unavailable.");
-    const execution = this.workspaces.chat.start(workspaceId, text, configuration.model, effort);
+    const execution = this.workspaces.chat.start(workspaceId, text, configuration.model, effort, retryOf);
     const controller = new AbortController();
     // Schedule after start has published its durable identity and returned.
     const settled = Promise.resolve().then(async () => {
@@ -134,10 +159,19 @@ export class ExecutionCoordinator {
     return execution;
   }
 
+  /**
+   * A new attempt, never a resumption. The old execution stays terminal with
+   * everything it committed; this one starts the normal contract over against
+   * the catalog and configuration as they are now, so a Scan Retry runs the
+   * Review Pass again over whatever the catalog holds today.
+   */
   retry(workspaceId: string, executionId: string): AgentExecution {
     const previous = this.workspaces.chat.execution(workspaceId, executionId);
-    if (previous.kind === "scan") {
-      throw new CuratorError("invalid_request", "Scan Retry is not available yet. Start a new Scan explicitly; it reviews the catalog as it now exists.");
+    if (previous.scan) {
+      if (previous.status === "running") {
+        throw new CuratorError("invalid_request", "That Scan is still running. Stop it before starting another attempt.");
+      }
+      return this.startScan(workspaceId, previous.scan.effort, previous.id);
     }
     if (!["failed", "cancelled", "interrupted"].includes(previous.status)) {
       throw new CuratorError("invalid_request", "Retry is available for a failed, cancelled, or interrupted attempt.");

@@ -8,9 +8,10 @@ import {
 import { renderPrompt } from "./prompts.js";
 import type { ChatApplication } from "./chat-application.js";
 
-export function initialScan(effort: ScanningEffort, reviewInputs: string[]): ScanProgress {
+export function initialScan(effort: ScanningEffort, reviewInputs: string[],
+  retryOf: string | null): ScanProgress {
   return {
-    effort, phase: "orientation", reviewInputs, reviewed: [],
+    effort, phase: "orientation", reviewInputs, reviewed: [], retryOf,
     applicationDescription: null, actorsAndInterfaces: [], gapCheck: null,
     unfinishedWork: [reviewInputs.length === 0
       ? "Repository orientation, discovery, and the final gap check have not finished."

@@ -48,6 +48,12 @@ export interface CuratorSession {
   reactivateFlow: (flowId: string) => Promise<boolean>;
   removeFlow: (flowId: string) => Promise<boolean>;
   chat: ChatSnapshot | null;
+  /**
+   * Whether the agent can be asked to do anything at all right now: the runtime
+   * has to be ready, this Workspace idle, and its Repository and configuration
+   * available. The runtime checks all of it again when work is submitted.
+   */
+  agentBlocked: boolean;
   chatDraft: string;
   setChatDraft: (draft: string) => void;
   sendMessage: () => void;
@@ -367,9 +373,12 @@ export function useCuratorSession(): CuratorSession {
     [mutate],
   );
 
+  const working = inFlight > 0 ||
+    agent.chat?.executions.some((execution) => execution.status === "running") === true;
+
   return {
     ready,
-    working: inFlight > 0 || agent.chat?.executions.some((execution) => execution.status === "running") === true,
+    working,
     notice: problem ?? mismatch ?? (status.state === "unavailable" ? status.error : null) ?? agent.error,
     dismissNotice: problem ? () => setProblem(null) : undefined,
     workspaces,
@@ -390,6 +399,7 @@ export function useCuratorSession(): CuratorSession {
     reactivateFlow,
     removeFlow,
     chat: agent.chat,
+    agentBlocked: !ready || working || agent.chat === null || agent.chat.blockedReason !== null,
     chatDraft: openedWorkspaceId ? drafts[openedWorkspaceId] ?? "" : "",
     setChatDraft: (draft) => {
       if (openedWorkspaceId) setDrafts((current) => ({ ...current, [openedWorkspaceId]: draft }));

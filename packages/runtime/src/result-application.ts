@@ -1,7 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError, acceptedResultSchema, resultEventSchema,
-  type AgentExecution, type ResultEvent, type ResultOrigin, type ResultOutcome, type UserFlow,
+  type AcceptedResult, type AgentExecution, type ResultEvent, type ResultOrigin,
+  type ResultOutcome, type UserFlow,
 } from "@curator/shared";
 import { requireScanResult } from "./scan.js";
 import type { CatalogApplication } from "./catalog-application.js";
@@ -15,11 +16,20 @@ export class ResultApplication {
   constructor(private readonly database: DatabaseSync,
     private readonly catalog: CatalogApplication, private readonly chat: ChatApplication) {}
 
-  /** Kept outside summaries alongside the current catalog, never inferred from chat. */
-  accepted(execution: AgentExecution): ResultOutcome[] {
+  /**
+   * Everything one execution had accepted, in acceptance order. This is
+   * retained history: it records what each result committed, and it never
+   * rebuilds current catalog state or restores a flow deleted since.
+   */
+  acceptedResults(execution: AgentExecution): AcceptedResult[] {
     this.chat.execution(execution.workspaceId, execution.id);
     return this.database.prepare("SELECT data FROM accepted_results WHERE execution_id = ? ORDER BY rowid")
-      .all(execution.id).map((row) => acceptedResultSchema.parse(JSON.parse(readText(row, "data"))).outcome);
+      .all(execution.id).map((row) => acceptedResultSchema.parse(JSON.parse(readText(row, "data"))));
+  }
+
+  /** Kept outside summaries alongside the current catalog, never inferred from chat. */
+  accepted(execution: AgentExecution): ResultOutcome[] {
+    return this.acceptedResults(execution).map((result) => result.outcome);
   }
 
   async accept(execution: AgentExecution, input: unknown, repository: RepositoryAccess,

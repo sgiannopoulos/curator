@@ -37,7 +37,9 @@ export class ChatApplication {
     return readExecution(row);
   }
 
-  start(workspaceId: string, text: string, model: string, effort?: ScanningEffort): AgentExecution {
+  /** A Scan Retry passes the terminal attempt it started from; nothing resumes. */
+  start(workspaceId: string, text: string, model: string, effort?: ScanningEffort,
+    retryOf: string | null = null): AgentExecution {
     return inTransaction(this.database, () => {
       requireIdle(this.database, workspaceId);
       // Claiming the Workspace and capturing what the Scan must review happen
@@ -45,7 +47,7 @@ export class ChatApplication {
       const reviewInputs = effort === undefined ? [] : this.catalog.identities(workspaceId);
       const execution: AgentExecution = {
         id: randomUUID(), workspaceId, kind: effort ? "scan" : "ordinary-chat",
-        scan: effort ? initialScan(effort, reviewInputs) : null, requestId: randomUUID(),
+        scan: effort ? initialScan(effort, reviewInputs, retryOf) : null, requestId: randomUUID(),
         model, status: "running", startedAt: new Date().toISOString(), endedAt: null,
         cancellationRequestedAt: null, reason: null, usage: null, usageRequests: 0,
         usageComplete: false,

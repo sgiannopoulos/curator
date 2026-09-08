@@ -14,7 +14,8 @@ Chat can also edit, reconsider, change the status of, and permanently delete
 existing flows, and each citation reports whether its source has changed or
 become unreadable. Scans run at Quick, Standard, or Maximum effort, reviewing
 every User Flow the catalog already holds before discovering more, with cited
-results arriving in the same Agent Chat.
+results arriving in the same Agent Chat. Every attempt is kept in a Scan history
+you can read and run again.
 
 ## Prerequisites
 
@@ -158,7 +159,41 @@ history; an unfinished attempt becomes Interrupted and never resumes. Compaction
 requests retain their available usage and response even when the summary fails,
 and incomplete totals stay marked so.
 
-The Scan-history browser and linked Scan Retry arrive in ticket 11.
+## Scan history and Retry
+
+**Workspace options → Scan history** opens every Scan this Workspace has
+attempted, newest first, read from the same records that persist them: the
+attempt keeps its effort, timestamps, the model actually configured for it, its
+outcome and reason, its accepted results, its review accounting, the paths its
+tools reported, its recorded unfinished work, and whatever usage the provider
+returned. Reopening the application shows the same history, and opening it while
+a Scan runs neither disturbs that Scan nor waits for it.
+
+Each attempt opens its own entries in the Workspace's one ongoing Agent Chat
+rather than repeating them elsewhere: there is no separate Scan conversation,
+and nothing is trimmed to make history smaller. Reasoning and compaction stay
+collapsed but readable, and an entry checkpointed mid-stream stays marked
+unfinished.
+
+Accepted results are shown as they committed, including results for flows that
+have since been deleted or re-cited. That is history, not a recovery path: it
+cannot restore a deleted User Flow, put back replaced evidence, or stop a later
+Scan from finding the same behavior again under a new identity.
+
+**Retry this Scan** starts a new Scan at the same effort, linked to the attempt
+it came from, which stays exactly as it ended. It is a new Agent Execution and a
+new Scan Record: it captures the catalog as it is now, runs the Review Pass over
+it, and uses the current application-wide configuration. Nothing resumes from a
+checkpoint, no earlier outbox is replayed, and no failed provider request is
+retried behind your back. Retry follows the same rules as any Scan, so it waits
+for the Repository, the configuration, and an idle Workspace.
+
+Cancelled, Failed, and Interrupted attempts keep their committed results, their
+available transcript, and what they recorded as unfinished. An attempt that
+ended inside its Review Pass says so, and says discovery never started, rather
+than presenting itself as a complete reading of the Repository. History and
+Agent Chat are kept until the Workspace is deleted: there is no per-Scan
+deletion and no automatic trimming.
 
 ## Source Citation freshness
 

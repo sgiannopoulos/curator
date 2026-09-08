@@ -42,6 +42,12 @@ export const scanProgressSchema = z.object({
   phase: scanPhaseSchema,
   reviewInputs: z.array(z.string().min(1)),
   reviewed: z.array(reviewAccountSchema),
+  /**
+   * The terminal attempt a Retry started from. That attempt stays terminal.
+   * Scans recorded before Retry existed carry no such link and read back as
+   * none, which is what they were.
+   */
+  retryOf: z.string().min(1).nullable().default(null),
   applicationDescription: z.string().nullable(),
   actorsAndInterfaces: z.array(z.string()),
   gapCheck: z.string().nullable(),

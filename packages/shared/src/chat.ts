@@ -95,6 +95,23 @@ export const executionActivitySchema = z.object({
   exclusions: z.array(fileActivitySchema),
 });
 
+/**
+ * One retained Scan attempt, assembled from the records that already own its
+ * parts: the durable Agent Execution carrying its Scan progress, the results it
+ * accepted, the file activity it reported, and how many entries it wrote into
+ * the Workspace's one ongoing conversation.
+ *
+ * A Scan Record is inspectable history. It may mention a User Flow that has
+ * since been deleted or re-cited, and it can neither restore that flow nor
+ * rebuild the catalog from what it remembers.
+ */
+export const scanRecordSchema = z.object({
+  execution: agentExecutionSchema,
+  results: z.array(acceptedResultSchema),
+  activity: executionActivitySchema,
+  entryCount: z.number().int().nonnegative(),
+});
+
 export const chatSnapshotSchema = z.object({
   entries: z.array(chatEntrySchema),
   executions: z.array(agentExecutionSchema),
@@ -110,4 +127,5 @@ export type ChatEntry = z.infer<typeof chatEntrySchema>;
 export type FileActivityKind = z.infer<typeof fileActivityKindSchema>;
 export type FileActivity = z.infer<typeof fileActivitySchema>;
 export type ExecutionActivity = z.infer<typeof executionActivitySchema>;
+export type ScanRecord = z.infer<typeof scanRecordSchema>;
 export type ChatSnapshot = z.infer<typeof chatSnapshotSchema>;

@@ -1,19 +1,43 @@
 import { useEffect, useRef, useState } from "react";
-import type { AgentExecution, ChatEntry, ExecutionActivity, FileActivity } from "@curator/shared";
+import type { AgentExecution, ChatEntry } from "@curator/shared";
+import { ExecutionUsage } from "./ExecutionUsage";
+import { PathActivity } from "./PathActivity";
 import { ScanOutcome } from "./ScanOutcome";
 import { sendCommand } from "../bridge";
 import type { CuratorSession } from "../useCuratorSession";
 
-export function AgentChat({ session, focusComposer }: { session: CuratorSession; focusComposer: number }) {
+export function AgentChat({ session, focusComposer, focusAttempt }: {
+  session: CuratorSession;
+  focusComposer: number;
+  /** An attempt to bring into view, from Scan history; the token repeats it. */
+  focusAttempt: { executionId: string; token: number } | null;
+}) {
   const { chat, panels } = session;
   const history = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const attempts = useRef(new Map<string, HTMLElement>());
   const following = useRef(true);
+  const [shown, setShown] = useState<string | null>(null);
   const running = chat?.executions.find((execution) => execution.status === "running");
   const unavailable = chat?.blockedReason ?? null;
   useEffect(() => {
     if (following.current && history.current) history.current.scrollTop = history.current.scrollHeight;
   }, [chat, panels.chatMinimized]);
+  // Scan history opens the conversation where that attempt sits, rather than
+  // repeating its entries somewhere else: there is one Agent Chat per Workspace.
+  useEffect(() => {
+    if (focusAttempt === null) return;
+    setShown(focusAttempt.executionId);
+    // Wait for the panel to finish restoring before scrolling, and jump only
+    // for this request: later entries arriving must not drag the reader back.
+    const frame = requestAnimationFrame(() => {
+      const element = attempts.current.get(focusAttempt.executionId);
+      if (element === undefined) return;
+      following.current = false;
+      element.scrollIntoView({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusAttempt]);
   useEffect(() => {
     if (focusComposer === 0) return;
     // Wait until the generation dialog has closed and restored focus.
@@ -47,11 +71,16 @@ export function AgentChat({ session, focusComposer }: { session: CuratorSession;
           {chat === null && <p className="small muted">Loading Agent Chat…</p>}
           {chat?.entries.length === 0 && <p className="small muted">Ask about this Repository or request a new User Flow. Curator reads the implementation and adds supporting Source Citations to flows it creates.</p>}
           {chat?.executions.map((execution) => (
-            <article key={execution.id} className="chat-attempt" aria-label={`Agent Execution, ${execution.status}`}>
+            <article key={execution.id} aria-label={`Agent Execution, ${execution.status}`}
+              className={`chat-attempt ${shown === execution.id ? "shown" : ""}`}
+              ref={(element) => {
+                if (element) attempts.current.set(execution.id, element);
+                else attempts.current.delete(execution.id);
+              }}>
               {entriesByExecution.get(execution.id)?.map((entry) => <Entry key={entry.sequence} entry={entry} />)}
               <ScanOutcome execution={execution} acceptedCount={
                 entriesByExecution.get(execution.id)?.filter((entry) => entry.result?.event.kind === "create-flow").length ?? 0} />
-              <Activity execution={execution}
+              <PathActivity execution={execution}
                 activity={chat.activity.find((item) => item.executionId === execution.id) ?? null} />
               {execution.status !== "running" && <ExecutionOutcome execution={execution} session={session} />}
             </article>
@@ -61,12 +90,12 @@ export function AgentChat({ session, focusComposer }: { session: CuratorSession;
         <form className="chat-composer" onSubmit={(event) => { event.preventDefault(); session.sendMessage(); }}>
           <textarea ref={composer} aria-label="Message Agent Chat" value={session.chatDraft}
             onChange={(event) => session.setChatDraft(event.target.value)} rows={2}
-            placeholder="Ask about this Repository or request a User Flow…" disabled={!session.ready || session.working || chat === null || unavailable !== null} />
+            placeholder="Ask about this Repository or request a User Flow…" disabled={session.agentBlocked} />
           {running ? (
             <button type="button" onClick={() => session.stopExecution(running.id)}
               disabled={!session.ready || running.cancellationRequestedAt !== null}>Stop</button>
           ) : (
-            <button className="primary" type="submit" disabled={!session.ready || session.working || chat === null || unavailable !== null || !session.chatDraft.trim()}>Send</button>
+            <button className="primary" type="submit" disabled={session.agentBlocked || !session.chatDraft.trim()}>Send</button>
           )}
         </form>
       </div>
@@ -140,70 +169,15 @@ function Entry({ entry }: { entry: ChatEntry }) {
   );
 }
 
-/**
- * What the attempt was observed to do with Repository files. These are the
- * paths its tools reported, not an account of everything it touched: nothing
- * here claims complete tracking, and a path nobody looked at is simply absent
- * rather than excluded.
- */
-function Activity({ execution, activity }: { execution: AgentExecution; activity: ExecutionActivity | null }) {
-  const [paths, setPaths] = useState<FileActivity[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    if (!expanded) return;
-    let listening = true;
-    void sendCommand("chat.activity", { workspaceId: execution.workspaceId, executionId: execution.id })
-      .then((result) => { if (listening) { setPaths(result.paths); setError(null); } })
-      .catch((cause: unknown) => {
-        if (listening) setError(cause instanceof Error ? cause.message : String(cause));
-      });
-    return () => { listening = false; };
-  }, [expanded, execution.workspaceId, execution.id, execution.status,
-    activity?.considered, activity?.read, activity?.excluded]);
-  if (activity === null) return null;
-  return (
-    <details className="chat-activity">
-      <summary>
-        Path records · {activity.considered} considered · {activity.read} read · {activity.excluded} excluded
-      </summary>
-      <p className="small muted">
-        Considered means a path was surfaced and weighed for relevance, Read means some of its
-        contents reached the agent, and Excluded means it was explicitly skipped. A path nobody
-        opened is none of these.
-      </p>
-      {activity.exclusions.length > 0 && (
-        <>
-          <ul className="chat-exclusions">
-            {activity.exclusions.map((exclusion) => (
-              <li key={exclusion.path}>
-                <span className="mono">{exclusion.path}</span>
-                {exclusion.count === null ? "" : ` (about ${exclusion.count} files)`} — {exclusion.reason}
-              </li>
-            ))}
-          </ul>
-          {activity.excluded > activity.exclusions.length && (
-            <p className="small muted">
-              The first {activity.exclusions.length} of {activity.excluded}; the rest are below.
-            </p>
-          )}
-        </>
-      )}
-      <details onToggle={(event) => setExpanded(event.currentTarget.open)}>
-        <summary>Every recorded path</summary>
-        {error ? <p>{error}</p> : paths === null ? <p>Loading…</p> : (
-          <pre>{paths.map((path) => `${path.kind}\t${path.path}${path.count === null ? "" : ` (${path.count} grouped paths)`}${path.reason === null ? "" : ` — ${path.reason}`}`).join("\n")}</pre>
-        )}
-      </details>
-    </details>
-  );
-}
-
 function ExecutionOutcome({ execution, session }: { execution: AgentExecution; session: CuratorSession }) {
   const [frames, setFrames] = useState<unknown[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const retriable = execution.kind === "ordinary-chat" && ["failed", "cancelled", "interrupted"].includes(execution.status);
+  // A Scan may be run again as it was requested; an ordinary message is only
+  // worth resending when its attempt did not finish. Either way this starts a
+  // new Agent Execution against current state rather than resuming anything.
+  const retriable = execution.status !== "running" &&
+    (execution.scan !== null || ["failed", "cancelled", "interrupted"].includes(execution.status));
   return (
     <div className="chat-outcome">
       <details><summary>Request details · {execution.status}</summary>
@@ -211,11 +185,8 @@ function ExecutionOutcome({ execution, session }: { execution: AgentExecution; s
           <dt>Model</dt><dd>{execution.model}</dd>
           <dt>Execution</dt><dd className="mono">{execution.id}</dd>
           <dt>Request</dt><dd className="mono">{execution.requestId}</dd>
-          <dt>Provider requests</dt><dd>{execution.usageRequests === 0 ? "None reported usage" : `${execution.usageRequests} reported usage`}</dd>
-          <dt>Usage and cost</dt><dd>{execution.usage === null ? "Unavailable" : execution.usageComplete ? "Provider-reported numbers, added across this attempt's requests" : "Incomplete provider totals"}</dd>
+          <ExecutionUsage execution={execution} />
         </dl>
-        {execution.usage !== null && <pre>{JSON.stringify(execution.usage, null, 2)}</pre>}
-        {execution.usage !== null && <p className="small muted">Only numeric fields add up. What each request reported on its own is in its complete payloads.</p>}
         <details onToggle={(event) => {
           if (!event.currentTarget.open || frames !== null || loading) return;
           setLoading(true);
@@ -227,8 +198,9 @@ function ExecutionOutcome({ execution, session }: { execution: AgentExecution; s
           {error ? <p>{error}</p> : frames === null ? <p>Loading…</p> : <pre>{JSON.stringify(frames, null, 2)}</pre>}
         </details>
       </details>
-      {retriable && <button disabled={!session.ready || session.working || session.chat?.blockedReason !== null}
-        onClick={() => session.retryExecution(execution.id)}>Retry as new attempt</button>}
+      {retriable && <button disabled={session.agentBlocked}
+        onClick={() => session.retryExecution(execution.id)}>
+        {execution.scan === null ? "Retry as new attempt" : "Retry as a new Scan"}</button>}
     </div>
   );
 }

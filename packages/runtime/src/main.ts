@@ -64,6 +64,7 @@ function main(): void {
   transport.handle("workspace.list", () => ({ workspaces: workspaces.list() }));
   transport.handle("chat.read", ({ workspaceId }) => executions.read(workspaceId));
   transport.handle("scan.start", ({ workspaceId, effort }) => executions.startScan(workspaceId, effort));
+  transport.handle("scan.history", ({ workspaceId }) => ({ records: executions.scanHistory(workspaceId) }));
   transport.handle("chat.send", ({ workspaceId, text }) => executions.start(workspaceId, text));
   transport.handle("chat.stop", ({ workspaceId, executionId }) => executions.stop(workspaceId, executionId));
   transport.handle("chat.retry", ({ workspaceId, executionId }) => executions.retry(workspaceId, executionId));

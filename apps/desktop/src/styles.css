@@ -495,3 +495,16 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 }
 .scan-outcome { padding: 10px 0; border-top: 1px solid var(--line); }
 .scan-outcome details { margin-top: 6px; }
+
+
+.history-item { padding: 16px 0; border-bottom: 1px solid var(--line); max-width: 72ch; }
+.history-item:last-of-type { border-bottom: 0; }
+.history-item p { margin-top: 6px; }
+.history-item .scan-outcome { border-top: 0; padding: 4px 0 0; }
+.history-item details { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.history-item summary { cursor: pointer; color: var(--ink); }
+.history-item dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 8px 0; }
+.history-item dt { color: var(--faint); }
+.history-item dd { margin: 0; overflow-wrap: anywhere; }
+.history-item pre { white-space: pre-wrap; font: 10px/1.6 var(--mono); padding: 6px 0; }
+.chat-attempt.shown { box-shadow: inset 2px 0 0 var(--tan); padding-left: 8px; }

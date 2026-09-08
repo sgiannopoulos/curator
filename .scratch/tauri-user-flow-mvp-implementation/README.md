@@ -24,7 +24,7 @@ Each ticket is a separate local issue marked `ready-for-agent`, with its own end
 
 ## Execution order
 
-Implementation progress: tickets 01 through 10 are implemented and resolved.
+Implementation progress: tickets 01 through 11 are implemented and resolved.
 Tickets 01 through 05 landed in commits `a17d36d`, `1fb618a`, `e892238`, `a78231c` and `60a9a4a`. Tickets 01 and
 02 were resolved after the fact, by checking their criteria against the shipped
 code; each records that in its comments. Ticket 06 adds cited creation through Agent Chat,
@@ -38,8 +38,11 @@ results, and a recorded gap check. Ticket 10 opens Scans to populated catalogs:
 the input identities are captured as the Workspace becomes busy, every one is
 reviewed exactly once as Supported, Contradicted, or Indeterminate, and a
 validated manifest checked against the accepted judgments is what lets discovery
-start. Tickets 11 (Scan history and Retry) and 12 (unavailable Repositories and
-Relink) are the next available slices.
+start. Ticket 11 adds the Scan history browser reached from Workspace options,
+reading each retained attempt through a `scan.history` command and opening its
+entries in the ongoing Agent Chat, with Retry starting a new linked Scan against
+the current catalog. Tickets 12 (unavailable Repositories and Relink) and 13
+(Workspace deletion) are the next available slices.
 
 Work an uncompleted ticket only when all its blockers are complete; among available tickets, prefer the lowest number. Initially, [01: Open and reopen a Workspace](issues/01-open-and-reopen-a-workspace.md) is the only unblocked ticket.
 

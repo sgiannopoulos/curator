@@ -9,6 +9,7 @@ import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
 import { describeMoment } from "../format";
 import type { CuratorSession } from "../useCuratorSession";
 import { ScanControls } from "../components/ScanControls";
+import { ScanHistory } from "../components/ScanHistory";
 import { AgentChat } from "../components/AgentChat";
 
 /**
@@ -26,6 +27,10 @@ export function WorkspacePage({
   const working = session.working || !session.ready;
   const { panels } = session;
   const [tab, setTab] = useState<FlowTab>("description");
+  // Which document the reading area shows. Opening Scan history keeps the
+  // selected flow, the panel sizes, and any unsent draft exactly as they were.
+  const [reading, setReading] = useState<"flow" | "history">("flow");
+  const [focusAttempt, setFocusAttempt] = useState<{ executionId: string; token: number } | null>(null);
   const [showingOptions, setShowingOptions] = useState(false);
   const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
   const [removing, setRemoving] = useState<UserFlow | null>(null);
@@ -86,9 +91,12 @@ export function WorkspacePage({
 
         <FlowList
           flows={session.flows}
-          selectedFlowId={selectedFlow?.id ?? null}
+          selectedFlowId={reading === "flow" ? selectedFlow?.id ?? null : null}
           disabled={working}
-          onSelect={session.selectFlow}
+          onSelect={(flowId) => {
+            setReading("flow");
+            session.selectFlow(flowId);
+          }}
           onAdd={() => setEditing("add")}
           onGenerate={() => setGenerating(true)}
           generationDisabled={generationDisabled}
@@ -116,11 +124,21 @@ export function WorkspacePage({
             onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
           />
         )}
-        <AgentChat session={session} focusComposer={focusComposer} />
+        <AgentChat session={session} focusComposer={focusComposer} focusAttempt={focusAttempt} />
       </aside>
 
       <section className="main">
-        {selectedFlow === null ? (
+        {reading === "history" ? (
+          <ScanHistory
+            workspaceId={workspace.id}
+            session={session}
+            onOpenChat={(executionId) => {
+              session.setPanels({ chatMinimized: false, chatHeight: Math.max(panels.chatHeight, 300) });
+              setFocusAttempt((current) => ({ executionId, token: (current?.token ?? 0) + 1 }));
+            }}
+            onClose={() => setReading("flow")}
+          />
+        ) : selectedFlow === null ? (
           <div className="empty">
             <h2>{session.flows.length === 0 ? "Start with a User Flow" : "Choose a User Flow"}</h2>
             <p>
@@ -225,7 +243,7 @@ export function WorkspacePage({
           Agent Chat and provider responses are retained in app-private, unencrypted
           storage and may contain source content. History is kept until Workspace deletion.
         </p>
-        <p style={{ marginTop: 18 }}>
+        <p className="row" style={{ marginTop: 18 }}>
           <button
             disabled={working}
             onClick={() => {
@@ -234,6 +252,14 @@ export function WorkspacePage({
             }}
           >
             Add User Flow manually
+          </button>
+          <button
+            onClick={() => {
+              setShowingOptions(false);
+              setReading("history");
+            }}
+          >
+            Scan history
           </button>
         </p>
       </Dialog>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { scanningEffortSchema } from "./scan.js";
-import { agentExecutionSchema, chatSnapshotSchema, fileActivitySchema } from "./chat.js";
+import { agentExecutionSchema, chatSnapshotSchema, fileActivitySchema, scanRecordSchema } from "./chat.js";
 import { applicationErrorSchema } from "./errors.js";
 import { evidenceFreshnessSchema, userFlowDraftSchema, userFlowSchema } from "./user-flow.js";
 import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
@@ -11,7 +11,7 @@ import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
  * correlated request and publishes ordered events describing new state. Both
  * sides validate every message with the schemas below.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 const emptyPayloadSchema = z.object({}).strict();
 
@@ -71,6 +71,10 @@ export const commandContracts = {
   "scan.start": {
     payload: z.object({ workspaceId: z.string().min(1), effort: scanningEffortSchema.default("standard") }).strict(),
     result: agentExecutionSchema,
+  },
+  "scan.history": {
+    payload: z.object({ workspaceId: z.string().min(1) }).strict(),
+    result: z.object({ records: z.array(scanRecordSchema) }),
   },
   "chat.send": {
     payload: z.object({ workspaceId: z.string().min(1), text: z.string().trim().min(1) }).strict(),
