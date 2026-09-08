@@ -1,5 +1,6 @@
 import { describeStatus, type MutationOrigin, type UserFlow } from "@curator/shared";
 import { Citations } from "./Citations";
+import type { EvidenceReadingState } from "./EvidenceReading";
 import { Inspector } from "./Inspector";
 import { Menu } from "./Menu";
 import { StatusBadge } from "./StatusBadge";
@@ -22,6 +23,7 @@ export function FlowDetail({
   flow,
   tab,
   working,
+  reading,
   onSelectTab,
   onEdit,
   onReactivate,
@@ -31,6 +33,7 @@ export function FlowDetail({
   flow: UserFlow;
   tab: FlowTab;
   working: boolean;
+  reading: EvidenceReadingState;
   onSelectTab: (tab: FlowTab) => void;
   onEdit: () => void;
   onReactivate: () => void;
@@ -102,8 +105,9 @@ export function FlowDetail({
                 </div>
               )}
               <p className="evidence-note">
-                Edits you make keep this flow's Source Citations. Those citations do not
-                certify that the edited text has been reviewed.
+                Edits you make keep this flow's Source Citations and the file contents
+                recorded with them. Those citations do not certify that the edited text
+                has been reviewed, and editing does not make them stale.
               </p>
             </article>
           )}
@@ -112,10 +116,11 @@ export function FlowDetail({
             <article className="document">
               <h3>Source Citations</h3>
               <p className="small muted" style={{ marginBottom: 22 }}>
-                Evidence supporting the agent's judgment. Source that has changed or
-                cannot be read does not change this flow's status.
+                Evidence supporting the agent's judgment, read against the Repository
+                as it is now. Source that has changed or cannot be read does not
+                change this flow's status.
               </p>
-              <Citations flow={flow} />
+              <Citations flow={flow} reading={reading} />
             </article>
           )}
 
@@ -133,7 +138,7 @@ export function FlowDetail({
             />
           )}
         </section>
-        <Inspector flow={flow} tab={tab} />
+        <Inspector flow={flow} tab={tab} reading={reading} />
       </div>
     </>
   );

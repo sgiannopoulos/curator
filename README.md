@@ -11,7 +11,8 @@ The agent reads the Repository with generic file and shell tools to answer
 questions about it, and long conversations continue through context compaction.
 Explicit creation requests now add source-cited User Flows through Agent Chat.
 Chat can also edit, reconsider, change the status of, and permanently delete
-existing flows. Scans arrive in later work.
+existing flows, and each citation reports whether its source has changed or
+become unreadable. Scans arrive in later work.
 
 ## Prerequisites
 
@@ -93,6 +94,30 @@ an accepted identity returns the original outcome without another mutation.
 Stop, failure, and restart keep all committed changes, including deletions. Deleted flows stay deleted
 in the current catalog; later discovery may create a new identity for the same
 behavior.
+
+## Source Citation freshness
+
+Selecting a flow reads its citations against the Repository as it is now. Each
+one shows its path, one-based line or range, the agent's explanation, and how
+that location currently reads: **Unchanged** when the file is byte-for-byte
+what was recorded when the evidence was accepted, **Stale** when the file has
+changed, and **Unavailable** when the Repository, the file, or the cited lines
+cannot be read. The source inspector summarizes the reading, and **Check
+again** takes another one.
+
+Freshness describes the source, not the behavior. It never moves a flow between
+Active and Outdated, never deletes evidence, and never replaces the fingerprint
+recorded with a citation; a flow whose source has vanished still opens, still
+reads, and still says what it said. Editing a description by hand, or asking the
+agent for a wording-only edit, leaves both the citations and their fingerprints
+where they were, so edited prose does not make evidence stale — only a
+determinate source review replaces citations and records new fingerprints.
+
+Nothing about freshness is stored. Each reading is taken again from the current
+Repository Locator, so source that changes back, or a location that becomes
+readable again, simply reads as unchanged again. Curator does not watch the
+filesystem, and citations remain display-only: there is no source viewer, no
+click action, and no editor to jump to.
 
 ## Reading the Repository
 

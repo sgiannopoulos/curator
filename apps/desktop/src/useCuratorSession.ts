@@ -3,12 +3,14 @@ import {
   PROTOCOL_VERSION,
   eventContracts,
   type ApplicationError,
+  type EvidenceFreshness,
   type RuntimeStatus,
   type UserFlow,
   type UserFlowDraft,
   type Workspace,
   type ChatSnapshot,
 } from "@curator/shared";
+import type { EvidenceReadingState } from "./components/EvidenceReading";
 import { useAgentChat } from "./useAgentChat";
 import {
   asCuratorError,
@@ -34,6 +36,8 @@ export interface CuratorSession {
   flows: UserFlow[];
   selectedFlow: UserFlow | null;
   selectFlow: (flowId: string) => void;
+  /** How the selected flow's citations read against the Repository just now. */
+  evidenceReading: EvidenceReadingState;
   chooseRepository: () => void;
   openWorkspace: (workspaceId: string) => void;
   closeWorkspace: () => void;
@@ -64,6 +68,9 @@ export function useCuratorSession(): CuratorSession {
   const [inFlight, setInFlight] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [panels, setPanels] = useState<Record<string, PanelState>>({});
+  const [freshness, setFreshness] = useState<{ key: string; reading: EvidenceFreshness } | null>(null);
+  const [checkingEvidence, setCheckingEvidence] = useState(false);
+  const [readingRequests, setReadingRequests] = useState(0);
 
   // Selection follows the user around the session but is not persisted: it is
   // immediate context, not stored work, so a restart starts clean.
@@ -198,6 +205,60 @@ export function useCuratorSession(): CuratorSession {
     };
   }, [ready, openedWorkspaceId, catchUp, report]);
 
+  const selectedFlowId = openedWorkspaceId
+    ? selectionByWorkspace[openedWorkspaceId] ?? null
+    : null;
+  const selectedFlow = flows.find((flow) => flow.id === selectedFlowId) ?? null;
+
+  // Which accepted evidence a reading belongs to, so a reading taken for one
+  // set of citations is never shown against another. Replacing a flow's
+  // citations asks for a new reading; rewording its description does not,
+  // because freshness describes the source rather than the prose.
+  const evidenceKey =
+    selectedFlow === null || selectedFlow.citations.length === 0
+      ? null
+      : [selectedFlow.id, ...selectedFlow.citations.map(
+        (citation) => `${citation.id}@${citation.acceptedAt}`)].join(" ");
+
+  /**
+   * Reads the selected flow's evidence against the Repository as it is now.
+   * Nothing is stored and nothing watches the filesystem: a reading is taken
+   * when evidence is inspected and whenever it is asked for again, so a file
+   * that changes back, or a location that becomes readable again, simply reads
+   * as unchanged again. It is a read, so it stays available while an Agent
+   * Execution is running and never changes a flow's status.
+   */
+  useEffect(() => {
+    if (!ready || openedWorkspaceId === null || selectedFlowId === null || evidenceKey === null) {
+      setFreshness(null);
+      setCheckingEvidence(false);
+      return;
+    }
+    let listening = true;
+    setCheckingEvidence(true);
+    sendCommand("catalog.freshness", { workspaceId: openedWorkspaceId, flowId: selectedFlowId })
+      .then((reading) => {
+        if (listening) {
+          setFreshness({ key: evidenceKey, reading });
+        }
+      })
+      .catch((cause: unknown) => {
+        // A flow removed while its evidence was being read is not a failure to
+        // report: the catalog update that removed it ends this reading anyway.
+        if (listening && asCuratorError(cause).code !== "user_flow_not_found") {
+          report(cause);
+        }
+      })
+      .finally(() => {
+        if (listening) {
+          setCheckingEvidence(false);
+        }
+      });
+    return () => {
+      listening = false;
+    };
+  }, [ready, openedWorkspaceId, selectedFlowId, evidenceKey, catchUp, readingRequests, report]);
+
   /**
    * Runs one operation, reporting whether the runtime committed it. Operations
    * are counted rather than flagged, so one settling early does not present the
@@ -304,10 +365,6 @@ export function useCuratorSession(): CuratorSession {
     [mutate],
   );
 
-  const selectedFlowId = openedWorkspaceId
-    ? selectionByWorkspace[openedWorkspaceId]
-    : undefined;
-
   return {
     ready,
     working: inFlight > 0 || agent.chat?.executions.some((execution) => execution.status === "running") === true,
@@ -316,8 +373,13 @@ export function useCuratorSession(): CuratorSession {
     workspaces,
     workspace,
     flows,
-    selectedFlow: flows.find((flow) => flow.id === selectedFlowId) ?? null,
+    selectedFlow,
     selectFlow,
+    evidenceReading: {
+      freshness: freshness?.key === evidenceKey ? freshness.reading : null,
+      checking: checkingEvidence,
+      recheck: () => setReadingRequests((count) => count + 1),
+    },
     chooseRepository,
     openWorkspace,
     closeWorkspace: () => setWorkspace(null),

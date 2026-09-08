@@ -1,4 +1,4 @@
-/** A short, human reading of when a Workspace was last opened. */
+/** A short, human reading of how long ago a moment was. Empty if unreadable. */
 export function describeWhen(timestamp: string): string {
   const moment = new Date(timestamp).getTime();
   if (Number.isNaN(moment)) {

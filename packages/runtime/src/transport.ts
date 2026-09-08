@@ -17,13 +17,17 @@ import { describeCause, log } from "./logging.js";
 
 type Handler<Name extends CommandName> = (
   payload: CommandPayload<Name>,
-) => CommandResult<Name>;
+) => CommandResult<Name> | Promise<CommandResult<Name>>;
 
 /**
  * Newline-delimited JSON over stdin and stdout. Every request is correlated by
  * id and answered exactly once; every event carries a monotonic sequence number
  * so the interface can tell ordered updates from a gap it needs to read past.
  * Nothing but protocol messages is written to stdout.
+ *
+ * A handler may answer asynchronously — reading the Repository is not a store
+ * operation and must not hold the event loop against streaming work. Replies
+ * are correlated by id, so one settling later than another is ordinary.
  */
 export class Transport {
   readonly #handlers = new Map<CommandName, Handler<CommandName>>();
@@ -45,13 +49,14 @@ export class Transport {
     lines.on("line", (line) => {
       const trimmed = line.trim();
       if (trimmed.length > 0) {
-        this.#dispatch(trimmed);
+        void this.#serve(trimmed);
       }
     });
     lines.on("close", onDisconnect);
   }
 
-  #dispatch(line: string): void {
+  /** One request, answered exactly once whether it settles now or later. */
+  async #serve(line: string): Promise<void> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -105,7 +110,7 @@ export class Transport {
     }
 
     try {
-      const result = contract.result.parse(handler(validPayload.data as never));
+      const result = contract.result.parse(await handler(validPayload.data as never));
       this.#write(responseEnvelopeSchema.parse({ kind: "response", id, ok: true, result }));
     } catch (cause) {
       if (cause instanceof CuratorError) {

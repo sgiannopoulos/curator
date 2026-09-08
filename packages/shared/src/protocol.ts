@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { agentExecutionSchema, chatSnapshotSchema, fileActivitySchema } from "./chat.js";
 import { applicationErrorSchema } from "./errors.js";
-import { userFlowDraftSchema, userFlowSchema } from "./user-flow.js";
+import { evidenceFreshnessSchema, userFlowDraftSchema, userFlowSchema } from "./user-flow.js";
 import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
 
 /**
@@ -10,7 +10,7 @@ import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
  * correlated request and publishes ordered events describing new state. Both
  * sides validate every message with the schemas below.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 const emptyPayloadSchema = z.object({}).strict();
 
@@ -102,6 +102,12 @@ export const commandContracts = {
   "catalog.list": {
     payload: z.object({ workspaceId: z.string().min(1) }).strict(),
     result: z.object({ flows: z.array(userFlowSchema) }),
+  },
+  "catalog.freshness": {
+    payload: z
+      .object({ workspaceId: z.string().min(1), flowId: z.string().min(1) })
+      .strict(),
+    result: evidenceFreshnessSchema,
   },
   "catalog.add": {
     payload: z

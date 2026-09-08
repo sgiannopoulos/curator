@@ -94,6 +94,8 @@ function main(): void {
   transport.handle("catalog.list", ({ workspaceId }) => ({
     flows: catalog.list(workspaceId),
   }));
+  transport.handle("catalog.freshness", ({ workspaceId, flowId }) =>
+    workspaces.evidenceFreshness(workspaceId, flowId));
   transport.handle("catalog.add", ({ workspaceId, draft }) => {
     const flow = catalog.add(workspaceId, draft);
     publishCatalog(workspaceId);

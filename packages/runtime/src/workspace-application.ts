@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
-import { CuratorError, type Workspace, type WorkspaceOpen } from "@curator/shared";
+import {
+  CuratorError,
+  type EvidenceFreshness,
+  type Workspace,
+  type WorkspaceOpen,
+} from "@curator/shared";
 import { CatalogApplication } from "./catalog-application.js";
 import { ChatApplication } from "./chat-application.js";
 import { ResultApplication } from "./result-application.js";
 import { FileActivityLog } from "./file-activity-log.js";
 import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
+import { inspectCitationFreshness } from "./repository-access.js";
 import { describeCause } from "./logging.js";
 import { readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
@@ -99,19 +105,36 @@ export class WorkspaceApplication {
   reopen(workspaceId: string): Workspace {
     const now = new Date().toISOString();
     return inTransaction(this.#database, () => {
-      const row = this.#database
-        .prepare(`SELECT ${WORKSPACE_COLUMNS} FROM workspaces WHERE id = ?`)
-        .get(workspaceId);
-      if (!row) {
-        throw new CuratorError(
-          "workspace_not_found",
-          "That Workspace is no longer in this Curator data store.",
-        );
-      }
-      const workspace = toWorkspace(row);
+      const workspace = this.#require(workspaceId);
       this.#touch(workspace.id, now);
       return { ...workspace, lastOpenedAt: now };
     });
+  }
+
+  /**
+   * Reads a User Flow's evidence against the Repository this Workspace analyzes
+   * right now. It is a reading, not a judgment: nothing is stored, no flow
+   * changes status, and an Agent Execution running in this Workspace neither
+   * blocks it nor is affected by it.
+   */
+  async evidenceFreshness(workspaceId: string, flowId: string): Promise<EvidenceFreshness> {
+    const workspace = this.#require(workspaceId);
+    const accepted = this.catalog.evidence(workspaceId, flowId);
+    const inspected = await inspectCitationFreshness(workspace.repositoryLocator, accepted);
+    return { flowId, checkedAt: new Date().toISOString(), ...inspected };
+  }
+
+  #require(workspaceId: string): Workspace {
+    const row = this.#database
+      .prepare(`SELECT ${WORKSPACE_COLUMNS} FROM workspaces WHERE id = ?`)
+      .get(workspaceId);
+    if (!row) {
+      throw new CuratorError(
+        "workspace_not_found",
+        "That Workspace is no longer in this Curator data store.",
+      );
+    }
+    return toWorkspace(row);
   }
 
   #findByLocator(locator: string): Workspace | undefined {

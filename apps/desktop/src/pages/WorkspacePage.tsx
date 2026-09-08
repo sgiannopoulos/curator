@@ -143,6 +143,7 @@ export function WorkspacePage({
             flow={selectedFlow}
             tab={tab}
             working={working}
+            reading={session.evidenceReading}
             onSelectTab={setTab}
             onEdit={() => setEditing("existing")}
             onReactivate={() => void session.reactivateFlow(selectedFlow.id)}

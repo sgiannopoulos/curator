@@ -1,5 +1,6 @@
 import type { UserFlow } from "@curator/shared";
 import { Citations } from "./Citations";
+import { EvidenceReading, type EvidenceReadingState } from "./EvidenceReading";
 import type { FlowTab } from "./FlowDetail";
 import { StatusBadge } from "./StatusBadge";
 
@@ -8,7 +9,15 @@ import { StatusBadge } from "./StatusBadge";
  * there rather than showing sample numbers, so nothing here can be mistaken
  * for a test that ran.
  */
-export function Inspector({ flow, tab }: { flow: UserFlow; tab: FlowTab }) {
+export function Inspector({
+  flow,
+  tab,
+  reading,
+}: {
+  flow: UserFlow;
+  tab: FlowTab;
+  reading: EvidenceReadingState;
+}) {
   if (tab === "steps" || tab === "screenshots") {
     return (
       <aside className="inspector">
@@ -38,17 +47,19 @@ export function Inspector({ flow, tab }: { flow: UserFlow; tab: FlowTab }) {
     <aside className="inspector" aria-label="Source evidence">
       <section className="inspector-section">
         <h3 className="label">Source Citations</h3>
-        <Citations flow={flow} />
+        <Citations flow={flow} reading={reading} />
+        <EvidenceReading flow={flow} reading={reading} />
         <p className="small muted">
           Citations support the agent's judgment. Editing the wording yourself does
-          not establish a new source review.
+          not establish a new source review, and it does not change what these
+          locations say.
         </p>
       </section>
       <section className="inspector-section">
         <h3 className="label">User Flow</h3>
         <StatusBadge status={flow.status} />
         <p className="small muted">
-          Evidence that has changed, and future test results, do not change this
+          Stale or unreadable evidence, and future test results, do not change this
           status on their own.
         </p>
       </section>

@@ -456,3 +456,28 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 .chat-composer button { padding: 8px; font-size: 11px; }
 .chat-separator { height: 6px; flex: none; cursor: ns-resize; touch-action: none; background: var(--line); }
 .chat-separator:hover, .chat-separator:focus-visible { background: var(--sage); }
+
+/* Source Citation freshness: a reading of the file, not of the behavior. */
+.citation .row { align-items: baseline; gap: 10px; }
+.freshness {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--green);
+  background: #eef1dd;
+}
+.freshness.stale { color: #7d5a1f; background: #f7ecd2; }
+.freshness.unavailable { color: var(--outdated-text); background: #f7e3d8; }
+.citation p.citation-freshness { color: var(--faint); font-style: italic; }
+.evidence-reading {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+}

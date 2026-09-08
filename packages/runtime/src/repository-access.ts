@@ -7,9 +7,18 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { ActivityReport } from "./file-activity-log.js";
-import { CuratorError, type CitationDraft } from "@curator/shared";
+import { CuratorError, type CitationDraft, type CitationFreshness } from "@curator/shared";
 
 export type CitationEvidence = CitationDraft & { contentFingerprint: string };
+
+/** A citation already in the catalog, with the fingerprint display omits. */
+export interface AcceptedCitation {
+  id: string;
+  path: string;
+  startLine: number;
+  endLine: number;
+  contentFingerprint: string;
+}
 
 /**
  * Sizes the tools state in their own output rather than trimming quietly. They
@@ -70,28 +79,12 @@ export class RepositoryAccess {
       const reject = (reason: string): never => {
         throw new CuratorError("invalid_result", `citations[${index}] (${citation.path}): ${reason}`);
       };
-      if (isAbsolute(citation.path) || citation.path.includes("\\") || citation.path.includes("\0") ||
-        citation.path.split("/").some((part) => part === ".." || part === "." || part === "")) {
-        reject("path must be a Repository-relative file path without empty, '.' or '..' segments.");
+      const source = await readCitedSource(root, citation.path, signal);
+      if ("problem" in source) return reject(source.detail);
+      if (!rangeIsInside(citation, source)) {
+        reject(`line range ${citation.startLine}-${citation.endLine} is invalid; source has ${source.lines} lines.`);
       }
-      const absolute = await realpath(resolve(root, citation.path)).catch(() => reject("source file does not exist or cannot be read."));
-      const inside = relative(root, absolute);
-      if (inside === "" || inside === ".." || inside.startsWith("../") || isAbsolute(inside)) {
-        reject("source must resolve to a file inside this Repository.");
-      }
-      const info = await stat(absolute).catch(() => reject("source file cannot be read."));
-      if (!info.isFile()) reject("source must be a regular file.");
-      const contents = await readFile(absolute, { signal }).catch((cause: unknown) => {
-        signal.throwIfAborted();
-        return reject(`source cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`);
-      });
-      if (looksBinary(contents)) reject("source is binary, so it has no citable text lines.");
-      const text = contents.toString("utf8");
-      const lines = text.length === 0 ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
-      if (citation.endLine < citation.startLine || citation.startLine < 1 || citation.endLine > lines) {
-        reject(`line range ${citation.startLine}-${citation.endLine} is invalid; source has ${lines} lines.`);
-      }
-      evidence.push({ ...citation, contentFingerprint: createHash("sha256").update(contents).digest("hex") });
+      evidence.push({ ...citation, contentFingerprint: fingerprint(source.contents) });
     }
     signal.throwIfAborted();
     return evidence;
@@ -451,6 +444,122 @@ async function runShellCommand(command: string, cwd: string, signal: AbortSignal
       settle([notes.join(" · "), output].join("\n"));
     });
   });
+}
+
+/**
+ * Reads a Source Citation's referenced location again and reports how it
+ * compares with the file content recorded when the evidence was accepted.
+ *
+ * This is a reading of the source, never of the catalog: nothing here writes,
+ * and the answer is recomputed from the current Repository Locator every time,
+ * so a location that becomes readable again simply reads as unchanged again. A
+ * Stale or Unavailable citation keeps its record, its accepted fingerprint, and
+ * the status of the User Flow it supports.
+ */
+export async function inspectCitationFreshness(
+  repositoryLocator: string,
+  citations: AcceptedCitation[],
+): Promise<{ repositoryAvailable: boolean; citations: CitationFreshness[] }> {
+  const root = await realpath(repositoryLocator).catch(() => null);
+  if (root === null) {
+    return {
+      repositoryAvailable: false,
+      citations: citations.map((citation) => ({
+        citationId: citation.id,
+        state: "unavailable" as const,
+        detail: `The Repository is not readable at ${repositoryLocator}, so this location cannot be checked.`,
+      })),
+    };
+  }
+
+  const reports: CitationFreshness[] = [];
+  for (const citation of citations) {
+    const source = await readCitedSource(root, citation.path);
+    if ("problem" in source) {
+      reports.push({ citationId: citation.id, state: "unavailable", detail: unreadableSource[source.problem] });
+      continue;
+    }
+    if (!rangeIsInside(citation, source)) {
+      reports.push({
+        citationId: citation.id,
+        state: "unavailable",
+        detail: `Lines ${citation.startLine}-${citation.endLine} are no longer in this file, which now has ${source.lines} lines.`,
+      });
+      continue;
+    }
+    reports.push(fingerprint(source.contents) === citation.contentFingerprint
+      ? { citationId: citation.id, state: "unchanged", detail: "This file is unchanged since this evidence was accepted." }
+      : { citationId: citation.id, state: "stale", detail: "This file has changed since this evidence was accepted, so the cited lines may no longer say what was reviewed." });
+  }
+  return { repositoryAvailable: true, citations: reports };
+}
+
+/**
+ * What an unreadable location means to the person reading the evidence, as
+ * opposed to the correction `inspectCitations` hands the agent for the same
+ * problem. A file that holds no text has no citable lines to read, which is
+ * why it reads as unavailable rather than as changed content.
+ */
+const unreadableSource: Record<SourceProblem, string> = {
+  "invalid-path": "This citation's recorded path cannot be resolved in the Repository.",
+  missing: "This file is no longer in the Repository.",
+  outside: "This path now leads outside the Repository.",
+  "not-a-file": "This path is no longer a regular file.",
+  unreadable: "This file could not be read.",
+  binary: "This file no longer holds text lines to cite.",
+};
+
+function rangeIsInside(citation: { startLine: number; endLine: number }, source: CitedSource): boolean {
+  return citation.startLine >= 1 && citation.endLine >= citation.startLine && citation.endLine <= source.lines;
+}
+
+type CitedSource = { contents: Buffer; lines: number };
+
+/** Why a cited location could not be read, named so each caller can word it. */
+type SourceProblem = "invalid-path" | "missing" | "outside" | "not-a-file" | "unreadable" | "binary";
+
+/** `detail` is worded for the agent, which has to correct the citation. */
+type UnreadableSource = { problem: SourceProblem; detail: string };
+
+/**
+ * The text a Repository-relative citation path names, or the reason there is
+ * none. Every reader of a cited location goes through here, so accepting
+ * evidence and checking its freshness later resolve the same path the same way.
+ */
+async function readCitedSource(
+  root: string, path: string, signal?: AbortSignal,
+): Promise<CitedSource | UnreadableSource> {
+  const unreadable = (problem: SourceProblem, detail: string): UnreadableSource => ({ problem, detail });
+  if (isAbsolute(path) || path.includes("\\") || path.includes("\0") ||
+    path.split("/").some((part) => part === ".." || part === "." || part === "")) {
+    return unreadable("invalid-path", "path must be a Repository-relative file path without empty, '.' or '..' segments.");
+  }
+  const absolute = await realpath(resolve(root, path)).catch(() => null);
+  if (absolute === null) return unreadable("missing", "source file does not exist or cannot be read.");
+  const inside = relative(root, absolute);
+  if (inside === "" || inside === ".." || inside.startsWith("../") || isAbsolute(inside)) {
+    return unreadable("outside", "source must resolve to a file inside this Repository.");
+  }
+  const info = await stat(absolute).catch(() => null);
+  if (info === null) return unreadable("unreadable", "source file cannot be read.");
+  if (!info.isFile()) return unreadable("not-a-file", "source must be a regular file.");
+  const contents = await readFile(absolute, signal === undefined ? {} : { signal })
+    .catch((cause: unknown) => {
+      signal?.throwIfAborted();
+      return unreadable("unreadable", `source cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`);
+    });
+  if (!Buffer.isBuffer(contents)) return contents;
+  if (looksBinary(contents)) return unreadable("binary", "source is binary, so it has no citable text lines.");
+  const text = contents.toString("utf8");
+  return {
+    contents,
+    lines: text.length === 0 ? 0 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0),
+  };
+}
+
+/** Whole-file content, so a later reading can tell that the file changed. */
+function fingerprint(contents: Buffer): string {
+  return createHash("sha256").update(contents).digest("hex");
 }
 
 async function describeSize(absolute: string): Promise<string> {

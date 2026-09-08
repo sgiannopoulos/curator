@@ -60,3 +60,47 @@ export const userFlowDraftSchema = z.object({
 });
 
 export type UserFlowDraft = z.infer<typeof userFlowDraftSchema>;
+
+/**
+ * How a Source Citation's referenced location reads against the Repository
+ * now, compared with the file content recorded when the evidence was accepted.
+ *
+ * Freshness describes the source, not the behavior. Stale evidence and a
+ * location that cannot be read are observations about a file; neither is proof
+ * that the User Flow's behavior changed, and neither moves it between Active
+ * and Outdated.
+ */
+export const citationFreshnessStates = ["unchanged", "stale", "unavailable"] as const;
+export const citationFreshnessStateSchema = z.enum(citationFreshnessStates);
+export type CitationFreshnessState = z.infer<typeof citationFreshnessStateSchema>;
+
+/**
+ * Unchanged, rather than current: Active and Outdated are the words for a
+ * User Flow's own state, and a file is not either of those.
+ */
+export function describeFreshness(state: CitationFreshnessState): string {
+  return state === "unchanged" ? "Unchanged" : state === "stale" ? "Stale" : "Unavailable";
+}
+
+export const citationFreshnessSchema = z.object({
+  citationId: z.string().min(1),
+  state: citationFreshnessStateSchema,
+  detail: z.string().min(1),
+});
+
+export type CitationFreshness = z.infer<typeof citationFreshnessSchema>;
+
+/**
+ * One reading of a User Flow's evidence. It is recalculated from the current
+ * Repository Locator every time evidence is inspected or refreshed and is
+ * never stored, so a location that becomes readable again simply reads as
+ * unchanged again.
+ */
+export const evidenceFreshnessSchema = z.object({
+  flowId: z.string().min(1),
+  checkedAt: z.string().min(1),
+  repositoryAvailable: z.boolean(),
+  citations: z.array(citationFreshnessSchema),
+});
+
+export type EvidenceFreshness = z.infer<typeof evidenceFreshnessSchema>;

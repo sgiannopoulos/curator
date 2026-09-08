@@ -12,7 +12,7 @@ import {
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
 import { requireIdle } from "./storage/execution-state.js";
-import type { CitationEvidence } from "./repository-access.js";
+import type { AcceptedCitation, CitationEvidence } from "./repository-access.js";
 
 const FLOW_COLUMNS =
   "id, workspace_id, title, description, status, created_at, updated_at, created_by, updated_by";
@@ -46,6 +46,32 @@ export class CatalogApplication {
   list(workspaceId: string): UserFlow[] {
     this.#requireWorkspace(workspaceId);
     return this.#read(workspaceId);
+  }
+
+  /**
+   * The stored evidence behind one flow, including the content fingerprint the
+   * display contract leaves out. It is what a freshness reading compares the
+   * Repository against; reading it changes nothing and stays available while an
+   * Agent Execution is running.
+   */
+  evidence(workspaceId: string, flowId: string): AcceptedCitation[] {
+    this.#requireFlow(workspaceId, flowId);
+    return this.#database
+      .prepare(
+        `SELECT c.id, c.path, c.start_line, c.end_line, c.content_fingerprint
+           FROM source_citations c
+           JOIN user_flows f ON f.id = c.user_flow_id
+          WHERE f.workspace_id = ? AND f.id = ?
+          ORDER BY c.position ASC`,
+      )
+      .all(workspaceId, flowId)
+      .map((row) => ({
+        id: readText(row, "id"),
+        path: readText(row, "path"),
+        startLine: readInteger(row, "start_line"),
+        endLine: readInteger(row, "end_line"),
+        contentFingerprint: readText(row, "content_fingerprint"),
+      }));
   }
 
   /**

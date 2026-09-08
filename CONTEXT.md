@@ -80,6 +80,10 @@ _Avoid_: Outdated User Flow, contradicted evidence
 A Source Citation whose referenced source location cannot currently be read, including a missing Repository, missing file, or invalid line range. Unavailability alone does not change the associated User Flow's status.
 _Avoid_: Deleted citation, Outdated User Flow
 
+**Source Citation freshness**:
+How a Source Citation's referenced location reads against the Repository now, compared with the file content recorded when the evidence was accepted: Unchanged, Stale, or Unavailable. It is a reading taken on inspection rather than stored state, and it describes the source rather than the User Flow.
+_Avoid_: Current, citation status, evidence validity
+
 **Active User Flow**:
 A User Flow currently treated as describing behavior that is possible and current.
 _Avoid_: Current flow
