@@ -23,3 +23,11 @@ export const workspaceOpenSchema = z.object({
 });
 
 export type WorkspaceOpen = z.infer<typeof workspaceOpenSchema>;
+
+/** A current reading of source access, independent of hosted configuration. */
+export const repositoryAvailabilitySchema = z.object({
+  repositoryLocator: z.string().min(1),
+  problem: z.string().nullable(),
+});
+
+export type RepositoryAvailability = z.infer<typeof repositoryAvailabilitySchema>;

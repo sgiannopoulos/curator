@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { scanProgressSchema } from "./scan.js";
 import { acceptedResultSchema } from "./result.js";
+import { repositoryAvailabilitySchema } from "./workspace.js";
 
 export const providerObjectSchema = z.record(z.string(), z.json());
 export const executionStatusSchema = z.enum([
@@ -117,6 +118,7 @@ export const chatSnapshotSchema = z.object({
   executions: z.array(agentExecutionSchema),
   activity: z.array(executionActivitySchema),
   blockedReason: z.string().nullable(),
+  repositoryAvailability: repositoryAvailabilitySchema,
 });
 
 export type ProviderObject = z.infer<typeof providerObjectSchema>;

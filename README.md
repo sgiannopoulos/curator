@@ -17,6 +17,18 @@ every User Flow the catalog already holds before discovering more, with cited
 results arriving in the same Agent Chat. Every attempt is kept in a Scan history
 you can read and run again.
 
+If a Repository moves or becomes unreadable, its Workspace still opens with its
+stored catalog and history, and idle manual curation remains available. Hosted
+Agent Chat and Scans wait for source access. **Workspace options → Relink
+Repository** lets you choose a folder and explicitly confirm it is the same
+Repository. Relink preserves the Workspace identity and all retained data;
+citations are checked against the new location without replacing their evidence
+or changing flow status. If that location already belongs to another Workspace,
+Curator opens that Workspace and leaves the original unchanged. Relink is
+unavailable during an active Agent Execution. Source access is checked when the
+Workspace opens, when the window regains focus, and on **Check again** in the
+unavailable-Repository notice; every execution start checks access again.
+
 ## Prerequisites
 
 Curator targets the machine described in the development contract, and nothing

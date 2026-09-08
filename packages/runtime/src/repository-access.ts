@@ -1,13 +1,26 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import { readdir, lstat, mkdir, readFile, realpath, stat, writeFile, appendFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { ActivityReport } from "./file-activity-log.js";
-import { CuratorError, type CitationDraft, type CitationFreshness } from "@curator/shared";
+import { CuratorError, type CitationDraft, type CitationFreshness, type RepositoryAvailability } from "@curator/shared";
+
+/** Source access can disappear independently of the Workspace's stored data. */
+export function repositoryAvailability(repositoryLocator: string): RepositoryAvailability {
+  try {
+    if (!statSync(repositoryLocator).isDirectory()) throw new Error("not a directory");
+    accessSync(repositoryLocator, constants.R_OK | constants.X_OK);
+    return { repositoryLocator, problem: null };
+  } catch {
+    return { repositoryLocator,
+      problem: `The Repository at ${repositoryLocator} is unavailable. Restore access or Relink it in Workspace options before starting Agent Chat or a Scan.` };
+  }
+}
 
 export type CitationEvidence = CitationDraft & { contentFingerprint: string };
 
@@ -460,7 +473,8 @@ export async function inspectCitationFreshness(
   repositoryLocator: string,
   citations: AcceptedCitation[],
 ): Promise<{ repositoryAvailable: boolean; citations: CitationFreshness[] }> {
-  const root = await realpath(repositoryLocator).catch(() => null);
+  const root = repositoryAvailability(repositoryLocator).problem === null
+    ? await realpath(repositoryLocator).catch(() => null) : null;
   if (root === null) {
     return {
       repositoryAvailable: false,

@@ -42,6 +42,8 @@ export interface CuratorSession {
   chooseRepository: () => void;
   openWorkspace: (workspaceId: string) => void;
   closeWorkspace: () => void;
+  relinkRepository: (repositoryLocator: string) => Promise<boolean>;
+  recheckRepository: () => void;
   /** Each resolves true only once the runtime has committed the change. */
   addFlow: (draft: UserFlowDraft) => Promise<boolean>;
   saveFlow: (flowId: string, draft: UserFlowDraft) => Promise<boolean>;
@@ -213,6 +215,12 @@ export function useCuratorSession(): CuratorSession {
     };
   }, [ready, openedWorkspaceId, catchUp, report]);
 
+  // Relink updates the current locator too, including after event catch-up.
+  useEffect(() => {
+    setWorkspace((current) => current === null ? null
+      : workspaces.find((item) => item.id === current.id) ?? current);
+  }, [workspaces]);
+
   const selectedFlowId = openedWorkspaceId
     ? selectionByWorkspace[openedWorkspaceId] ?? null
     : null;
@@ -225,7 +233,8 @@ export function useCuratorSession(): CuratorSession {
   const evidenceKey =
     selectedFlow === null || selectedFlow.citations.length === 0
       ? null
-      : [selectedFlow.id, ...selectedFlow.citations.map(
+      : [workspace?.repositoryLocator, agent.chat?.repositoryAvailability.problem ? "unavailable" : "available",
+        selectedFlow.id, ...selectedFlow.citations.map(
         (citation) => `${citation.id}@${citation.acceptedAt}`)].join(" ");
 
   /**
@@ -375,6 +384,7 @@ export function useCuratorSession(): CuratorSession {
 
   const working = inFlight > 0 ||
     agent.chat?.executions.some((execution) => execution.status === "running") === true;
+  const sourceReadingMatches = agent.chat?.repositoryAvailability.repositoryLocator === workspace?.repositoryLocator;
 
   return {
     ready,
@@ -394,12 +404,21 @@ export function useCuratorSession(): CuratorSession {
     chooseRepository,
     openWorkspace,
     closeWorkspace: () => setWorkspace(null),
+    relinkRepository: (repositoryLocator) => mutate(async (workspaceId) => {
+      const relinked = await sendCommand("workspace.relink", {
+        workspaceId, repositoryLocator, confirmedSameRepository: true,
+      });
+      setWorkspace(relinked);
+      // Also refresh when the selected locator was unchanged.
+      setCatchUp((count) => count + 1);
+    }),
+    recheckRepository: () => setCatchUp((count) => count + 1),
     addFlow,
     saveFlow,
     reactivateFlow,
     removeFlow,
     chat: agent.chat,
-    agentBlocked: !ready || working || agent.chat === null || agent.chat.blockedReason !== null,
+    agentBlocked: !ready || working || !sourceReadingMatches || agent.chat === null || agent.chat.blockedReason !== null,
     chatDraft: openedWorkspaceId ? drafts[openedWorkspaceId] ?? "" : "",
     setChatDraft: (draft) => {
       if (openedWorkspaceId) setDrafts((current) => ({ ...current, [openedWorkspaceId]: draft }));

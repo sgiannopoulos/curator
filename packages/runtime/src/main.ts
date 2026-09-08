@@ -84,6 +84,12 @@ function main(): void {
     transport.publish("workspaces.changed", { workspaces: workspaces.list() });
     return workspace;
   });
+  transport.handle("workspace.relink", ({ workspaceId, repositoryLocator }) => {
+    const workspace = workspaces.relink(workspaceId, repositoryLocator);
+    transport.publish("workspaces.changed", { workspaces: workspaces.list() });
+    transport.publish("chat.changed", { workspaceId: workspace.id });
+    return workspace;
+  });
 
   const catalog = workspaces.catalog;
   const publishCatalog = (workspaceId: string): void => {

@@ -213,6 +213,8 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 .preview-note { padding: 4px 18px; color: var(--muted); font-size: 12px; }
 
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.repository-unavailable { flex: none; padding: 14px 20px; background: var(--sand); border-bottom: 1px solid var(--line); }
+.repository-unavailable p { margin: 6px 0 10px; }
 .empty {
   margin: auto;
   max-width: 460px;

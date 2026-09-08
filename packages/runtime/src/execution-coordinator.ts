@@ -1,9 +1,9 @@
-import { accessSync, constants, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   CuratorError,
   type AgentExecution, type ChatSnapshot, type FileActivity, type ProviderObject,
   type ScanningEffort, type ScanRecord,
+  type RepositoryAvailability,
 } from "@curator/shared";
 import { renderPrompt } from "./prompts.js";
 import { scanInstructions, scanProgressTool } from "./scan.js";
@@ -29,11 +29,13 @@ export class ExecutionCoordinator {
   }
 
   read(workspaceId: string): ChatSnapshot {
+    const availability = this.workspaces.repositoryAvailability(workspaceId);
     return {
       entries: this.workspaces.chat.entries(workspaceId),
       executions: this.workspaces.chat.executions(workspaceId),
       activity: this.workspaces.activity.summary(workspaceId),
-      blockedReason: this.blockedReason(workspaceId),
+      blockedReason: this.blockedReason(availability),
+      repositoryAvailability: availability,
     };
   }
 
@@ -76,7 +78,7 @@ export class ExecutionCoordinator {
 
   private launch(workspaceId: string, text: string, effort?: ScanningEffort,
     retryOf: string | null = null): AgentExecution {
-    const blocked = this.blockedReason(workspaceId);
+    const blocked = this.blockedReason(this.workspaces.repositoryAvailability(workspaceId));
     const configuration = this.settings.configuration;
     if (blocked || !configuration) throw new CuratorError("agent_unavailable", blocked ?? "OpenRouter Configuration is unavailable.");
     const execution = this.workspaces.chat.start(workspaceId, text, configuration.model, effort, retryOf);
@@ -196,17 +198,9 @@ export class ExecutionCoordinator {
     return workspace.repositoryLocator;
   }
 
-  private blockedReason(workspaceId: string): string | null {
-    const locator = this.repositoryLocator(workspaceId);
+  private blockedReason(availability: RepositoryAvailability): string | null {
     if (this.#stopping) return "Curator is shutting down. Restart it to continue.";
-    if (this.settings.problem) return this.settings.problem;
-    try {
-      if (!statSync(locator).isDirectory()) throw new Error("not a directory");
-      accessSync(locator, constants.R_OK | constants.X_OK);
-    } catch {
-      return `The Repository at ${locator} is unavailable. Restore access before sending a message.`;
-    }
-    return null;
+    return availability.problem ?? this.settings.problem;
   }
 
   /**

@@ -6,6 +6,7 @@ import { FlowEditorDialog } from "../components/FlowEditorDialog";
 import { GenerateFlowDialog } from "../components/GenerateFlowDialog";
 import { FlowList } from "../components/FlowList";
 import { RemoveFlowDialog } from "../components/RemoveFlowDialog";
+import { RelinkDialog } from "../components/RelinkDialog";
 import { describeMoment } from "../format";
 import type { CuratorSession } from "../useCuratorSession";
 import { ScanControls } from "../components/ScanControls";
@@ -32,12 +33,17 @@ export function WorkspacePage({
   const [reading, setReading] = useState<"flow" | "history">("flow");
   const [focusAttempt, setFocusAttempt] = useState<{ executionId: string; token: number } | null>(null);
   const [showingOptions, setShowingOptions] = useState(false);
+  const [relinking, setRelinking] = useState(false);
   const [editing, setEditing] = useState<"none" | "add" | "existing">("none");
   const [removing, setRemoving] = useState<UserFlow | null>(null);
   const [futurePreview, setFuturePreview] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [focusComposer, setFocusComposer] = useState(0);
-  const generationDisabled = working || session.chat === null || session.chat.blockedReason !== null;
+  const generationDisabled = session.agentBlocked;
+  const availability = session.chat?.repositoryAvailability;
+  const repositoryProblem = availability?.repositoryLocator === workspace.repositoryLocator
+    ? availability.problem : null;
+  const relinkDisabled = working || session.chat === null;
 
   // Selecting a flow opens its Description, so behavior is what you read first.
   useEffect(() => {
@@ -128,6 +134,17 @@ export function WorkspacePage({
       </aside>
 
       <section className="main">
+        {repositoryProblem && (
+          <section className="repository-unavailable" aria-label="Repository unavailable">
+            <strong>Repository unavailable</strong>
+            <p className="small">Stored User Flows, Agent Chat, and Scan history remain available.
+              You can edit User Flows while this Workspace is idle. Restore access or Relink to use the agent.</p>
+            <div className="row">
+              <button disabled={relinkDisabled} onClick={() => setRelinking(true)}>Relink Repository…</button>
+              <button disabled={!session.ready} onClick={session.recheckRepository}>Check again</button>
+            </div>
+          </section>
+        )}
         {reading === "history" ? (
           <ScanHistory
             workspaceId={workspace.id}
@@ -182,6 +199,9 @@ export function WorkspacePage({
           setFocusComposer((value) => value + 1);
         }} />
 
+      {relinking && <RelinkDialog workspace={workspace} session={session}
+        onClose={() => setRelinking(false)} />}
+
       <FlowEditorDialog
         open={editing !== "none"}
         flow={editing === "existing" ? selectedFlow : null}
@@ -227,6 +247,9 @@ export function WorkspacePage({
         <dl className="details">
           <dt>Repository</dt>
           <dd className="mono">{workspace.repositoryLocator}</dd>
+          <dt>Source access</dt>
+          <dd>{availability?.repositoryLocator !== workspace.repositoryLocator ? "Checking…"
+            : repositoryProblem ? "Unavailable" : "Available"}</dd>
           <dt>User Flows</dt>
           <dd>{session.flows.length}</dd>
           <dt>First opened</dt>
@@ -243,7 +266,11 @@ export function WorkspacePage({
           Agent Chat and provider responses are retained in app-private, unencrypted
           storage and may contain source content. History is kept until Workspace deletion.
         </p>
-        <p className="row" style={{ marginTop: 18 }}>
+        <p className="row" style={{ marginTop: 18, flexWrap: "wrap" }}>
+          <button disabled={relinkDisabled} onClick={() => {
+            setShowingOptions(false);
+            setRelinking(true);
+          }}>Relink Repository…</button>
           <button
             disabled={working}
             onClick={() => {
@@ -262,6 +289,8 @@ export function WorkspacePage({
             Scan history
           </button>
         </p>
+        {session.chat?.executions.some((execution) => execution.status === "running") &&
+          <p className="small muted">Stop the active Agent Execution or wait for it to finish before relinking.</p>}
       </Dialog>
     </div>
   );

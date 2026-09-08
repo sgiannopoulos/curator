@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError,
   type EvidenceFreshness,
+  type RepositoryAvailability,
   type Workspace,
   type WorkspaceOpen,
 } from "@curator/shared";
@@ -12,10 +12,10 @@ import { ChatApplication } from "./chat-application.js";
 import { ResultApplication } from "./result-application.js";
 import { FileActivityLog } from "./file-activity-log.js";
 import { deriveDisplayName, normalizeRepositoryLocator } from "./locator.js";
-import { inspectCitationFreshness } from "./repository-access.js";
-import { describeCause } from "./logging.js";
+import { inspectCitationFreshness, repositoryAvailability } from "./repository-access.js";
 import { readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
+import { requireIdle } from "./storage/execution-state.js";
 
 const WORKSPACE_COLUMNS =
   "id, repository_locator, display_name, created_at, last_opened_at";
@@ -64,8 +64,7 @@ export class WorkspaceApplication {
    */
   open(repositoryLocator: string): WorkspaceOpen {
     const locator = normalizeRepositoryLocator(repositoryLocator);
-    requireDirectory(locator);
-
+    const availability = repositoryAvailability(locator);
     const now = new Date().toISOString();
     return inTransaction(this.#database, () => {
       const existing = this.#findByLocator(locator);
@@ -73,6 +72,8 @@ export class WorkspaceApplication {
         this.#touch(existing.id, now);
         return { workspace: { ...existing, lastOpenedAt: now }, recognized: true };
       }
+
+      requireDirectory(availability);
 
       const workspace: Workspace = {
         id: randomUUID(),
@@ -99,8 +100,7 @@ export class WorkspaceApplication {
 
   /**
    * Reopens a Workspace already listed in Recent. Stored data stays reachable
-   * whether or not the Repository is still at its locator; reporting and
-   * repairing an unavailable Repository belongs to a later slice.
+   * whether or not the Repository is still at its locator.
    */
   reopen(workspaceId: string): Workspace {
     const now = new Date().toISOString();
@@ -108,6 +108,38 @@ export class WorkspaceApplication {
       const workspace = this.#require(workspaceId);
       this.#touch(workspace.id, now);
       return { ...workspace, lastOpenedAt: now };
+    });
+  }
+
+  repositoryAvailability(workspaceId: string): RepositoryAvailability {
+    return repositoryAvailability(this.#require(workspaceId).repositoryLocator);
+  }
+
+  /**
+   * Called after explicit same-Repository confirmation. The locator and its
+   * derived name change together; catalog, evidence and history are untouched.
+   * The busy check shares the transaction authority used by execution start.
+   */
+  relink(workspaceId: string, repositoryLocator: string): Workspace {
+    const locator = normalizeRepositoryLocator(repositoryLocator);
+    const availability = repositoryAvailability(locator);
+    return inTransaction(this.#database, () => {
+      const workspace = this.#require(workspaceId);
+      requireIdle(this.#database, workspaceId);
+      const now = new Date().toISOString();
+      const existing = this.#findByLocator(locator);
+      if (existing) {
+        // An occupied locator opens its owner. The original association is
+        // never moved, merged, or even touched when the owner is different.
+        this.#touch(existing.id, now);
+        return { ...existing, lastOpenedAt: now };
+      }
+      requireDirectory(availability);
+      const displayName = deriveDisplayName(locator);
+      this.#database.prepare(`UPDATE workspaces
+        SET repository_locator = ?, display_name = ?, last_opened_at = ? WHERE id = ?`)
+        .run(locator, displayName, now, workspaceId);
+      return { ...workspace, repositoryLocator: locator, displayName, lastOpenedAt: now };
     });
   }
 
@@ -162,21 +194,11 @@ function toWorkspace(row: StoredRow): Workspace {
   };
 }
 
-function requireDirectory(locator: string): void {
-  let isDirectory: boolean;
-  try {
-    isDirectory = statSync(locator).isDirectory();
-  } catch (cause) {
+function requireDirectory(availability: RepositoryAvailability): void {
+  if (availability.problem !== null) {
     throw new CuratorError(
       "repository_not_a_directory",
-      `Curator could not read ${locator} as a directory.`,
-      describeCause(cause),
-    );
-  }
-  if (!isDirectory) {
-    throw new CuratorError(
-      "repository_not_a_directory",
-      `${locator} is not a directory, so it cannot be a Repository.`,
+      `Curator could not access ${availability.repositoryLocator} as a readable directory. Choose an available Repository directory.`,
     );
   }
 }
