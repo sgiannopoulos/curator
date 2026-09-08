@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { CuratorError, type ScanningEffort } from "@curator/shared";
 
 type PromptName =
-  | "system" | "scan" | "scan-request"
+  | "system" | "scan" | "scan-request" | "scan-review" | "scan-review-skipped"
   | "chat-authorization" | "chat-curation" | "chat-execution"
   | "compaction" | "compaction-context"
   | `effort/${ScanningEffort}`

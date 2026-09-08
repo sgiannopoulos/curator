@@ -11,7 +11,7 @@ import { workspaceOpenSchema, workspaceSchema } from "./workspace.js";
  * correlated request and publishes ordered events describing new state. Both
  * sides validate every message with the schemas below.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 const emptyPayloadSchema = z.object({}).strict();
 

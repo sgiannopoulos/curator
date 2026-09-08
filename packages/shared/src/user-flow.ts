@@ -21,6 +21,10 @@ export const mutationOrigins = ["manual", "scan", "agent"] as const;
 export const mutationOriginSchema = z.enum(mutationOrigins);
 export type MutationOrigin = z.infer<typeof mutationOriginSchema>;
 
+/** The origins an accepted agent result may record. The user's own curation is
+ * the other origin, and nothing an agent submits may claim it. */
+export type ResultOrigin = Extract<MutationOrigin, "scan" | "agent">;
+
 /**
  * Evidence for a judgment about a User Flow: a Repository-relative location
  * with a one-based line or tight range and an explanation, never a copied

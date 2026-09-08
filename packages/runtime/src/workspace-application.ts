@@ -42,7 +42,7 @@ export class WorkspaceApplication {
   constructor(database: DatabaseSync) {
     this.#database = database;
     this.catalog = new CatalogApplication(database);
-    this.chat = new ChatApplication(database);
+    this.chat = new ChatApplication(database, this.catalog);
     this.results = new ResultApplication(database, this.catalog, this.chat);
     this.activity = new FileActivityLog(database);
   }

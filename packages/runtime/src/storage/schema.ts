@@ -5,7 +5,7 @@
  * untouched. A change to tables or their stored payload contracts raises the version, and existing stores
  * then report as unsupported rather than being upgraded in place.
  */
-export const SUPPORTED_SCHEMA_VERSION = 7;
+export const SUPPORTED_SCHEMA_VERSION = 8;
 
 export const SCHEMA_STATEMENTS = `
 CREATE TABLE workspaces (

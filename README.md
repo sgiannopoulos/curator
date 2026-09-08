@@ -12,8 +12,9 @@ questions about it, and long conversations continue through context compaction.
 Explicit creation requests now add source-cited User Flows through Agent Chat.
 Chat can also edit, reconsider, change the status of, and permanently delete
 existing flows, and each citation reports whether its source has changed or
-become unreadable. Empty catalogs can now be scanned at Quick, Standard, or
-Maximum effort, with cited discoveries arriving in the same Agent Chat.
+become unreadable. Scans run at Quick, Standard, or Maximum effort, reviewing
+every User Flow the catalog already holds before discovering more, with cited
+results arriving in the same Agent Chat.
 
 ## Prerequisites
 
@@ -96,7 +97,7 @@ Stop, failure, and restart keep all committed changes, including deletions. Dele
 in the current catalog; later discovery may create a new identity for the same
 behavior.
 
-## Scanning an empty catalog
+## Scanning a Repository
 
 Choose **Scanning Effort** (Standard by default), then **Scan**. The Scan restores
 Agent Chat while keeping any unsent draft. Effort changes the requested detail:
@@ -107,28 +108,57 @@ the same configured model, tools, and execution loop, with no effort-based
 resource ceilings or promise of complete coverage.
 
 The agent inventories the Repository, reads relevant implementation artifacts,
-and records an application description and human actors/interfaces. An empty
-catalog skips the Review Pass and enters Discovery Pass. Each accepted discovery
-appears immediately as an Active User Flow with Scan origin and supporting
-citations. The agent compares candidates with the current catalog to consolidate
-behavior; result identities prevent duplicate acceptance of the same event.
-Before normal completion it must record a gap check across the identified
-actors/interfaces. This is a quality prompt, not proof of coverage.
+and records an application description and human actors/interfaces. Whatever the
+catalog held when the Scan claimed the Workspace becomes that Scan's input
+identities, captured in the same transaction that made the Workspace busy.
 
-The Scan Record keeps its progress inside the durable Agent Execution, with
+### The Review Pass
+
+Every input identity is reviewed exactly once, before any discovery. **Supported**
+makes or keeps a flow Active, **Contradicted** makes or keeps it Outdated, and
+both replace its citations with the evidence just read. **Indeterminate** records
+a short explanation and leaves title, description, status, and citations exactly
+as they were: leaving a flow out of the results, or failing to inspect it, can
+never mark it Outdated. A Scan never rewrites a title or description and never
+deletes a flow; materially changed behavior becomes an Outdated old flow beside
+a new Active one, and an ambiguous match becomes a new flow rather than an
+overwrite.
+
+Discovery starts only after every input identity has an accepted judgment. The
+barrier is Curator's own persisted phase and accounting, not the agent's
+adherence: results outside the current pass are refused, and the agent must
+report a manifest of what it reviewed, which Curator checks against the
+judgments it actually accepted before letting the Scan continue. A Scan that
+stops or fails mid-review keeps its committed judgments, never advances, and
+says what remained; the next Scan reviews the catalog as it then exists. An
+empty catalog has nothing to review and enters discovery directly.
+
+### Discovery
+
+Discovery compares candidates with the catalog the Review Pass left behind. Each
+accepted discovery appears immediately as an Active User Flow with Scan origin
+and supporting citations, and result identities prevent duplicate acceptance of
+the same event. If later evidence overturns a review judgment, the agent submits
+a correction for that identity — including reactivating a flow it marked
+Outdated — instead of creating a duplicate; both events stay in the Scan's
+history. Before normal completion it must record a gap check across the
+identified actors/interfaces. This is a quality prompt, not proof of coverage.
+
+Deleted behavior may be rediscovered under a new identity. History is not a
+tombstone list, a restoration store, or a reason to suppress a later discovery.
+
+The Scan Record keeps its progress inside the durable Agent Execution: effort,
+phase, input identities, review accounting, and recorded unfinished work, with
 lifecycle, model, timestamps, usage, chat entries, path activity, and accepted
-results associated by that same execution identity. Its phase and recorded
-unfinished work survive compaction. Agent Chat shows the basic outcome, accepted
-discovery count, and last recorded remaining work. Stop, failures, and restart
-preserve committed discoveries and history; an unfinished attempt becomes
-Interrupted and never resumes. Compaction requests retain their available usage
-and response even when the summary fails, and incomplete totals stay marked so.
+results associated by that same execution identity. All of it survives internal
+turns and compaction without changing the Scan or Agent Execution identity. Agent
+Chat shows the basic outcome, review progress, accepted discovery count, and last
+recorded remaining work. Stop, failures, and restart preserve committed work and
+history; an unfinished attempt becomes Interrupted and never resumes. Compaction
+requests retain their available usage and response even when the summary fails,
+and incomplete totals stay marked so.
 
-Scans currently require an empty catalog, enforced when the execution starts.
-This includes later attempts after partial discovery: populated catalogs need
-the complete Review Pass, which arrives in ticket 10. Ordinary chat remains
-available for explicit curation. The Scan-history browser and linked Scan Retry
-arrive in ticket 11.
+The Scan-history browser and linked Scan Retry arrive in ticket 11.
 
 ## Source Citation freshness
 
@@ -226,8 +256,9 @@ live provider fidelity probes remain deferred.
 ## Editing agent prompts
 
 Model instructions live in [`packages/runtime/prompts/`](packages/runtime/prompts/README.md)
-as Markdown files. Start with `scan.md` for the Scan process, `effort/*.md` for
-Quick/Standard/Maximum guidance, and `system.md` for shared agent rules. Ordinary
+as Markdown files. Start with `scan.md` for the Scan process, `scan-review.md`
+for the Review Pass, `effort/*.md` for Quick/Standard/Maximum guidance, and
+`system.md` for shared agent rules. Ordinary
 chat, compaction, and Scan/result tool descriptions have their own files there.
 The directory README lists the files and their runtime placeholders.
 
@@ -274,7 +305,7 @@ Working data an attempt writes lives beside that store, under `agent-work`.
 Nothing resumes across a restart, so whatever an ended attempt left there is
 discarded when Curator starts.
 
-This build uses schema version **7**; earlier version 1-6 stores are unsupported
+This build uses schema version **8**; earlier version 1-7 stores are unsupported
 and remain untouched. Agent Chat and provider payloads are retained indefinitely
 in this unencrypted app-private store and may contain source content. Current
 catalog state is independent of historical mentions. On restart, unfinished

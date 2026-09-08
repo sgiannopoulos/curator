@@ -9,6 +9,7 @@ cached until restart. Markdown-only changes do not need a rebuild.
 | --- | --- |
 | [system.md](system.md) | Shared source-inspection rules, citation requirements, result submission, and where current execution state is inserted. |
 | [scan.md](scan.md) | Scan orientation, discovery, semantic comparison, progress reporting, and final gap check. |
+| [scan-review.md](scan-review.md), [scan-review-skipped.md](scan-review-skipped.md) | The Review Pass over the flows a Scan started with, or the note that there were none. |
 | [effort/quick.md](effort/quick.md), [effort/standard.md](effort/standard.md), [effort/maximum.md](effort/maximum.md) | The model's requested detail for each Scanning Effort. |
 | [scan-request.md](scan-request.md) | The explicit Scan request recorded in Agent Chat. |
 | [chat-authorization.md](chat-authorization.md) | What an ordinary chat request authorizes. |
@@ -32,7 +33,8 @@ containing braces or dollar signs is not interpreted as another placeholder.
 | Template | Available placeholders |
 | --- | --- |
 | `system.md` | `repositoryLocator`, `chatAuthorization`, `chatCuration`, `outboxFile`, `creationExample`, `executionInstructions`, `currentCatalog`, `acceptedResults` |
-| `scan.md` | `effort`, `effortInstructions`, `executionId`, `workspaceId`, `scanState` |
+| `scan.md` | `effort`, `effortInstructions`, `reviewInstructions`, `executionId`, `workspaceId`, `scanState` |
+| `scan-review.md` | `reviewCount`, `reviewExample`, `indeterminateExample` |
 | `scan-request.md` | `effort` |
 | `chat-execution.md` | `executionId`, `workspaceId` |
 | `compaction-context.md` | `replaced`, `summary` |

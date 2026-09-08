@@ -5,7 +5,7 @@ import {
   mutationOriginSchema,
   userFlowStatusSchema,
   type ExistingFlowResult,
-  type MutationOrigin,
+  type ResultOrigin,
   type SourceCitation,
   type UserFlow,
   type UserFlowDraft,
@@ -17,6 +17,8 @@ import type { AcceptedCitation, CitationEvidence } from "./repository-access.js"
 
 const FLOW_COLUMNS =
   "id, workspace_id, title, description, status, created_at, updated_at, created_by, updated_by";
+
+const FLOW_ORDER = "ORDER BY title COLLATE NOCASE ASC, created_at ASC";
 
 const CITATION_COLUMNS = [
   "id",
@@ -47,6 +49,18 @@ export class CatalogApplication {
   list(workspaceId: string): UserFlow[] {
     this.#requireWorkspace(workspaceId);
     return this.#read(workspaceId);
+  }
+
+  /**
+   * Every current User Flow identity, in catalog order. A Scan captures this as
+   * it claims the Workspace, so its Review Pass knows exactly which flows it
+   * must account for; reading it is not itself a claim on the Workspace.
+   */
+  identities(workspaceId: string): string[] {
+    return this.#database
+      .prepare(`SELECT id FROM user_flows WHERE workspace_id = ? ${FLOW_ORDER}`)
+      .all(workspaceId)
+      .map((row) => readText(row, "id"));
   }
 
   /**
@@ -103,7 +117,7 @@ export class CatalogApplication {
   }
 
   /** Called only inside result acceptance's identity/lifecycle transaction. */
-  createFromEvidence(workspaceId: string, draft: UserFlowDraft, evidence: CitationEvidence[], origin: Extract<MutationOrigin, "agent" | "scan">): UserFlow {
+  createFromEvidence(workspaceId: string, draft: UserFlowDraft, evidence: CitationEvidence[], origin: ResultOrigin): UserFlow {
     this.#requireWorkspace(workspaceId);
     const now = new Date().toISOString();
     const flow: UserFlow = {
@@ -126,7 +140,7 @@ export class CatalogApplication {
   }
 
   /** Called only inside result acceptance's identity/lifecycle transaction. */
-  applyExistingResult(event: ExistingFlowResult, evidence: CitationEvidence[]): UserFlow {
+  applyExistingResult(event: ExistingFlowResult, evidence: CitationEvidence[], origin: ResultOrigin): UserFlow {
     const flow = this.requireResultTarget(event);
     if (event.kind === "delete-flow") {
       this.#database.prepare("DELETE FROM user_flows WHERE id = ?").run(flow.id);
@@ -135,7 +149,7 @@ export class CatalogApplication {
     if (event.kind === "review-flow" && event.judgment === "indeterminate") return flow;
 
     const now = new Date().toISOString();
-    const updated: UserFlow = { ...flow, updatedAt: now, updatedBy: "agent" };
+    const updated: UserFlow = { ...flow, updatedAt: now, updatedBy: origin };
     if (event.kind === "edit-wording" || event.kind === "edit-behavior") {
       updated.title = event.title;
       updated.description = event.description;
@@ -148,7 +162,7 @@ export class CatalogApplication {
     }
     this.#database.prepare(`UPDATE user_flows
       SET title = ?, description = ?, status = ?, updated_at = ?, updated_by = ? WHERE id = ?`)
-      .run(updated.title, updated.description, updated.status, now, "agent", flow.id);
+      .run(updated.title, updated.description, updated.status, now, origin, flow.id);
     return updated;
   }
 
@@ -230,11 +244,7 @@ export class CatalogApplication {
           .prepare(`SELECT ${FLOW_COLUMNS} FROM user_flows WHERE workspace_id = ? AND id = ?`)
           .all(workspaceId, flowId)
       : this.#database
-          .prepare(
-            `SELECT ${FLOW_COLUMNS} FROM user_flows
-              WHERE workspace_id = ?
-              ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
-          )
+          .prepare(`SELECT ${FLOW_COLUMNS} FROM user_flows WHERE workspace_id = ? ${FLOW_ORDER}`)
           .all(workspaceId);
 
     const citations = this.#readCitations(workspaceId, flowId);

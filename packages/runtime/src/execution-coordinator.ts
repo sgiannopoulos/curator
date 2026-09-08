@@ -94,8 +94,13 @@ export class ExecutionCoordinator {
           tools.push(scanProgressTool(execution, chat, controller.signal, () => this.changed(workspaceId)));
         }
         await runAgentChat(configuration, tools, session, controller.signal);
-        if (execution.kind === "scan" && !chat.execution(workspaceId, execution.id).scan?.gapCheck) {
-          throw new Error("The Scan ended before recording its orientation and final gap check. Accepted discoveries and recorded unfinished work were retained.");
+        const scan = execution.kind === "scan" ? chat.execution(workspaceId, execution.id).scan : null;
+        // A Scan that answers without reaching its gap check did not finish the
+        // protocol, whichever pass it stopped in. Its committed work stands.
+        if (scan && !scan.gapCheck) {
+          throw new Error(scan.phase === "review"
+            ? "The Scan ended during its Review Pass, before every existing User Flow was accounted for, so discovery never started. Accepted review judgments and recorded unfinished work were retained."
+            : "The Scan ended before recording its orientation and final gap check. Accepted discoveries and recorded unfinished work were retained.");
         }
       } catch (cause) {
         // Report actual provider errors; never serialize request headers/options.
@@ -132,7 +137,7 @@ export class ExecutionCoordinator {
   retry(workspaceId: string, executionId: string): AgentExecution {
     const previous = this.workspaces.chat.execution(workspaceId, executionId);
     if (previous.kind === "scan") {
-      throw new CuratorError("invalid_request", "Scan Retry is not available yet. Start a new Scan explicitly; populated catalogs require the Review Pass.");
+      throw new CuratorError("invalid_request", "Scan Retry is not available yet. Start a new Scan explicitly; it reviews the catalog as it now exists.");
     }
     if (!["failed", "cancelled", "interrupted"].includes(previous.status)) {
       throw new CuratorError("invalid_request", "Retry is available for a failed, cancelled, or interrupted attempt.");

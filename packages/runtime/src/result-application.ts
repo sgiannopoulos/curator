@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError, acceptedResultSchema, resultEventSchema,
-  type AgentExecution, type ResultEvent, type ResultOutcome, type UserFlow,
+  type AgentExecution, type ResultEvent, type ResultOrigin, type ResultOutcome, type UserFlow,
 } from "@curator/shared";
+import { requireScanResult } from "./scan.js";
 import type { CatalogApplication } from "./catalog-application.js";
 import type { ChatApplication } from "./chat-application.js";
 import type { RepositoryAccess } from "./repository-access.js";
@@ -38,9 +39,7 @@ export class ResultApplication {
     const previous = this.#outcome(execution.id, event.eventId);
     if (previous) return { outcome: previous, applied: false };
     const current = this.chat.execution(execution.workspaceId, execution.id);
-    if (current.kind === "scan" && (current.scan?.phase !== "discovery" || event.kind !== "create-flow")) {
-      throw new CuratorError("invalid_result", "This Scan accepts only create-flow results during Discovery Pass. Record orientation first; existing-flow mutations are not allowed.");
-    }
+    if (current.kind === "scan") requireScanResult(current.scan, event);
     if (event.kind !== "create-flow") this.catalog.requireResultTarget(event);
     const evidence = "citations" in event ? await repository.inspectCitations(event.citations, signal) : [];
     return inTransaction(this.database, () => {
@@ -48,10 +47,16 @@ export class ResultApplication {
       this.#requireActive(execution);
       const replay = this.#outcome(execution.id, event.eventId);
       if (replay) return { outcome: replay, applied: false };
+      // Source was read before this transaction opened, so the identity,
+      // lifecycle, and Scan phase this result depends on are checked again
+      // inside it against state that cannot move while it commits.
+      const settled = this.chat.execution(execution.workspaceId, execution.id);
+      if (settled.kind === "scan") requireScanResult(settled.scan, event);
+      const origin: ResultOrigin = settled.kind === "scan" ? "scan" : "agent";
       const flow = event.kind === "create-flow"
         ? this.catalog.createFromEvidence(execution.workspaceId,
-          { title: event.title, description: event.description }, evidence, execution.kind === "scan" ? "scan" : "agent")
-        : this.catalog.applyExistingResult(event, evidence);
+          { title: event.title, description: event.description }, evidence, origin)
+        : this.catalog.applyExistingResult(event, evidence, origin);
       const outcome: ResultOutcome = {
         executionId: execution.id, eventId: event.eventId, kind: event.kind,
         flowId: flow.id, acceptedAt: new Date().toISOString(),
@@ -59,7 +64,7 @@ export class ResultApplication {
       const result = { event, outcome, flow };
       this.database.prepare("INSERT INTO accepted_results (execution_id, event_id, data) VALUES (?, ?, ?)")
         .run(execution.id, event.eventId, JSON.stringify(result));
-      this.chat.recordScanDiscovery(execution);
+      this.chat.recordScanResult(execution, event);
       this.chat.append(execution, "result", describeResult(event, flow), { result });
       return { outcome, applied: !(event.kind === "review-flow" && event.judgment === "indeterminate") };
     });

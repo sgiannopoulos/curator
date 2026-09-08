@@ -2,18 +2,20 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
   CuratorError, agentExecutionSchema, chatEntrySchema,
-  type AgentExecution, type ChatEntry, type ProviderObject, type ToolInvocation,
+  type AgentExecution, type ChatEntry, type ProviderObject, type ResultEvent, type ToolInvocation,
   type ScanningEffort, type ScanReport, type ScanProgress,
 } from "@curator/shared";
-import { initialScan, advanceScan } from "./scan.js";
+import { accountForResult, advanceScan, describeReport, initialScan } from "./scan.js";
 import { readInteger, readText, type StoredRow } from "./storage/rows.js";
 import { inTransaction } from "./storage/transaction.js";
 import { requireIdle } from "./storage/execution-state.js";
+import type { CatalogApplication } from "./catalog-application.js";
 import type { Compaction } from "./working-context.js";
 
 /** Workspace-owned transcript and lifecycle persistence share catalog transactions. */
 export class ChatApplication {
-  constructor(private readonly database: DatabaseSync) {}
+  constructor(private readonly database: DatabaseSync,
+    private readonly catalog: CatalogApplication) {}
 
   entries(workspaceId: string): ChatEntry[] {
     return this.database.prepare(
@@ -38,11 +40,12 @@ export class ChatApplication {
   start(workspaceId: string, text: string, model: string, effort?: ScanningEffort): AgentExecution {
     return inTransaction(this.database, () => {
       requireIdle(this.database, workspaceId);
-      if (effort && this.database.prepare("SELECT 1 FROM user_flows WHERE workspace_id = ? LIMIT 1").get(workspaceId)) {
-        throw new CuratorError("invalid_request", "Scanning a populated catalog requires the Review Pass, which is not available yet. You can still curate through Agent Chat.");
-      }
+      // Claiming the Workspace and capturing what the Scan must review happen
+      // in one transaction, so no flow can be added or removed between them.
+      const reviewInputs = effort === undefined ? [] : this.catalog.identities(workspaceId);
       const execution: AgentExecution = {
-        id: randomUUID(), workspaceId, kind: effort ? "scan" : "ordinary-chat", scan: effort ? initialScan(effort) : null, requestId: randomUUID(),
+        id: randomUUID(), workspaceId, kind: effort ? "scan" : "ordinary-chat",
+        scan: effort ? initialScan(effort, reviewInputs) : null, requestId: randomUUID(),
         model, status: "running", startedAt: new Date().toISOString(), endedAt: null,
         cancellationRequestedAt: null, reason: null, usage: null, usageRequests: 0,
         usageComplete: false,
@@ -63,19 +66,22 @@ export class ChatApplication {
       }
       const scan = advanceScan(current.scan, report);
       this.saveExecution({ ...current, scan });
-      this.append(current, "lifecycle", report.kind === "orientation"
-        ? `Discovery Pass · Review Pass skipped for an empty catalog. ${scan.applicationDescription}`
-        : report.kind === "gap-check" ? `Gap check recorded: ${report.summary}`
-          : `Recorded unfinished work: ${report.unfinishedWork.join("; ") || "None recorded"}`);
+      this.append(current, "lifecycle", describeReport(report, scan));
       return scan;
     });
   }
 
-  /** An accepted discovery after a gap check means that check must be revisited.
-   * Called inside result acceptance's transaction, alongside catalog and history. */
-  recordScanDiscovery(execution: AgentExecution): void {
+  /**
+   * The Scan's own accounting for one accepted result. A discovery after a gap
+   * check means that check must be revisited; a Review Pass judgment accounts
+   * for one input identity. Called inside result acceptance's transaction,
+   * alongside the catalog mutation and the retained history.
+   */
+  recordScanResult(execution: AgentExecution, event: ResultEvent): void {
     const current = this.execution(execution.workspaceId, execution.id);
-    if (current.scan) this.saveExecution({ ...current, scan: { ...current.scan, gapCheck: null } });
+    if (!current.scan) return;
+    const scan = accountForResult(current.scan, event);
+    if (scan !== current.scan) this.saveExecution({ ...current, scan });
   }
 
   append(execution: AgentExecution, kind: ChatEntry["kind"], text: string,
@@ -210,7 +216,7 @@ export class ChatApplication {
     const running = this.database.prepare("SELECT data FROM agent_executions WHERE status = 'running'")
       .all().map(readExecution);
     for (const execution of running) {
-      this.finish(execution, "interrupted", "The application runtime ended before this attempt settled. Retained response content is unfinished; start new work against the current catalog. Scans with retained discoveries require the Review Pass before another Scan.");
+      this.finish(execution, "interrupted", "The application runtime ended before this attempt settled. Retained response content is unfinished; start new work against the current catalog. A new Scan reviews the catalog as it now exists rather than resuming this one.");
     }
   }
 

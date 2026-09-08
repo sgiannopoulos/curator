@@ -19,6 +19,15 @@ const resultIdentity = {
 const flowIdentity = { ...resultIdentity, flowId: z.string().min(1) };
 const supportingCitations = z.array(citationDraftSchema).min(1);
 
+/**
+ * What a source review concluded about a User Flow. Supported and contradicted
+ * are positive readings of the source and carry the evidence for it;
+ * indeterminate is the honest answer when inspection could not settle it.
+ */
+export const reviewJudgments = ["supported", "contradicted", "indeterminate"] as const;
+export const reviewJudgmentSchema = z.enum(reviewJudgments);
+export type ReviewJudgment = z.infer<typeof reviewJudgmentSchema>;
+
 /** Wording and indeterminate review cannot smuggle in evidence/status changes. */
 export const existingFlowResultSchema = z.discriminatedUnion("kind", [
   z.object({ ...flowIdentity, kind: z.literal("edit-wording"), ...userFlowDraftSchema.shape }).strict(),
