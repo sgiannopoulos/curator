@@ -1,0 +1,1 @@
+Validate and accept the single JSON event in {{outboxFile}}, written with write_working_file. During this Scan, use only for cited create-flow discoveries after recording orientation; existing-flow mutations are not allowed. Accepted changes commit immediately; indeterminate review retains the unchanged flow and explanation. Rejected events can be repaired in this conversation.

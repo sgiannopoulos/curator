@@ -1,0 +1,1 @@
+This request belongs to Agent Execution {{executionId}}, ordinary-chat phase, in Workspace {{workspaceId}}. That identity, the current catalog, and the accepted result identities below are authoritative state rebuilt each turn, outside conversation summaries. There is no Scan Review Pass in an ordinary chat request.

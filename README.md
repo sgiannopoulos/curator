@@ -223,6 +223,18 @@ This follows the provider's documented
 [reasoning continuation format](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens);
 live provider fidelity probes remain deferred.
 
+## Editing agent prompts
+
+Model instructions live in [`packages/runtime/prompts/`](packages/runtime/prompts/README.md)
+as Markdown files. Start with `scan.md` for the Scan process, `effort/*.md` for
+Quick/Standard/Maximum guidance, and `system.md` for shared agent rules. Ordinary
+chat, compaction, and Scan/result tool descriptions have their own files there.
+The directory README lists the files and their runtime placeholders.
+
+Restart Curator after editing prompts. Both development and compiled launches
+read those files directly from the checkout; Markdown edits need no rebuild.
+Current execution state is inserted by the runtime and is never summarized away.
+
 ## Commands
 
 | Command | What it does |

@@ -4,12 +4,6 @@ export const scanningEfforts = ["quick", "standard", "maximum"] as const;
 export const scanningEffortSchema = z.enum(scanningEfforts);
 export type ScanningEffort = z.infer<typeof scanningEffortSchema>;
 
-export const scanningEffortDescriptions: Record<ScanningEffort, string> = {
-  quick: "Principal goals and happy paths, combining minor variants.",
-  standard: "Main paths, alternatives, validation failures, permission differences, and state changes.",
-  maximum: "Detailed paths, uncommon cases, edges, recovery, and materially distinct outcomes.",
-};
-
 /**
  * The Scan-specific part of its durable Agent Execution. Lifecycle, model,
  * usage, chat, activity, and accepted results are associated by execution id;
