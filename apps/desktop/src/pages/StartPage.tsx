@@ -28,13 +28,14 @@ export function StartPage({
     <div className="start-body">
       <section className="welcome">
         <div className="welcome-copy">
-          <h1>Understand what people can do</h1>
-          <p>Open a local Repository to start a Workspace</p>
+          <h1>Open a Repository</h1>
           <div className="welcome-actions">
             <button className="primary" onClick={onChooseRepository} disabled={blocked}>
               Choose a folder…
             </button>
-            <button onClick={() => setShowingCloneDialog(true)}>Clone from Git…</button>
+            <button onClick={() => setShowingCloneDialog(true)}>
+              Clone from Git… <span className="future-tag">Preview</span>
+            </button>
           </div>
         </div>
       </section>
@@ -47,7 +48,7 @@ export function StartPage({
         </div>
         {workspaces.length === 0 ? (
           <p className="recent-empty">
-            Workspaces you open appear here. Choose a folder to get started.
+            No recent Workspaces.
           </p>
         ) : (
           workspaces.map((workspace) => (
@@ -71,16 +72,12 @@ export function StartPage({
 
       <Dialog
         title="Clone from Git"
-        subtitle="Future feature"
+        subtitle="Preview"
         open={showingCloneDialog}
         onClose={() => setShowingCloneDialog(false)}
       >
         <p>
-          Curator will be able to clone a Repository here. For now, clone it yourself and
-          choose the folder.
-        </p>
-        <p className="small muted" style={{ marginTop: 14 }}>
-          Nothing has been downloaded, cloned, or changed.
+          Clone the Repository locally, then choose its folder.
         </p>
       </Dialog>
     </div>

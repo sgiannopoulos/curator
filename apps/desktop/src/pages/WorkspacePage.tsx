@@ -139,8 +139,7 @@ export function WorkspacePage({
         {repositoryProblem && (
           <section className="repository-unavailable" aria-label="Repository unavailable">
             <strong>Repository unavailable</strong>
-            <p className="small">Stored User Flows, Agent Chat, and Scan history remain available.
-              You can edit User Flows while this Workspace is idle. Restore access or Relink to use the agent.</p>
+            <p className="small">Saved data is available. Restore access or Relink to use the agent.</p>
             <div className="row">
               <button disabled={relinkDisabled} onClick={() => setRelinking(true)}>Relink Repository…</button>
               <button disabled={!session.ready} onClick={session.recheckRepository}>Check again</button>
@@ -159,12 +158,8 @@ export function WorkspacePage({
           />
         ) : selectedFlow === null ? (
           <div className="empty">
-            <h2>{session.flows.length === 0 ? "Start with a User Flow" : "Choose a User Flow"}</h2>
-            <p>
-              {session.flows.length === 0
-                ? "Ask Curator to create a flow from this Repository's source, or describe behavior you already know in your own words."
-                : "Pick one from the list to read its description and the evidence behind it."}
-            </p>
+            <h2>{session.flows.length === 0 ? "No User Flows yet" : "Choose a User Flow"}</h2>
+            {session.flows.length === 0 && <p>Scan the Repository or add a flow.</p>}
             {session.flows.length === 0 && (
               <button
                 className="primary"
@@ -230,17 +225,11 @@ export function WorkspacePage({
 
       <Dialog
         title={futurePreview ?? ""}
-        subtitle="Future testing feature"
+        subtitle="Preview"
         open={futurePreview !== null}
         onClose={() => setFuturePreview(null)}
       >
-        <p>
-          Curator analyzes source to describe behavior; it does not run the product.
-          Test execution is a later feature, and this control is a placeholder for it.
-        </p>
-        <p className="small muted" style={{ marginTop: 14 }}>
-          Nothing has been run, and nothing has changed.
-        </p>
+        <p>Not available yet.</p>
       </Dialog>
 
       <Dialog
@@ -263,13 +252,8 @@ export function WorkspacePage({
           <dd>{describeMoment(workspace.lastOpenedAt)}</dd>
         </dl>
         <p className="small muted">
-          Choosing this same folder again reopens this Workspace rather than starting
-          another one. Its catalog is stored in Curator's own data, outside the
-          Repository.
-        </p>
-        <p className="small muted" style={{ marginTop: 12 }}>
-          Agent Chat and provider responses are retained in app-private, unencrypted
-          storage and may contain source content. History is kept until Workspace deletion.
+          Chat and provider responses may contain source content. Stored locally without
+          encryption until Workspace deletion.
         </p>
         <p className="row" style={{ marginTop: 18, flexWrap: "wrap" }}>
           <button disabled={relinkDisabled} onClick={() => {
@@ -299,7 +283,7 @@ export function WorkspacePage({
           }}>Delete Workspace…</button>
         </p>
         {session.chat?.executions.some((execution) => execution.status === "running") &&
-          <p className="small muted">Stop the active Agent Execution or wait for it to finish before relinking or deleting this Workspace.</p>}
+          <p className="small muted">Stop the agent or wait for it to finish before relinking or deleting.</p>}
       </Dialog>
     </div>
   );

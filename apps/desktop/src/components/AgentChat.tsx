@@ -69,7 +69,6 @@ export function AgentChat({ session, focusComposer, focusAttempt }: {
           if (element) following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 40;
         }}>
           {chat === null && <p className="small muted">Loading Agent Chat…</p>}
-          {chat?.entries.length === 0 && <p className="small muted">Ask about this Repository or request a new User Flow. Curator reads the implementation and adds supporting Source Citations to flows it creates.</p>}
           {chat?.executions.map((execution) => (
             <article key={execution.id} aria-label={`Agent Execution, ${execution.status}`}
               className={`chat-attempt ${shown === execution.id ? "shown" : ""}`}
@@ -107,16 +106,16 @@ function Entry({ entry }: { entry: ChatEntry }) {
   if (entry.kind === "lifecycle") return <p className="chat-lifecycle">{entry.text}</p>;
   if (entry.kind === "result" || entry.kind === "validation") {
     return (
-      <details className="chat-tool" open={entry.kind === "result"}>
+      <details className="chat-tool">
         <summary>{entry.kind === "result" ? entry.text : "Result rejected · repair requested"}</summary>
         {entry.result ? <>
           <p>{entry.result.flow.description}</p>
           <p className="small muted">
             {entry.result.event.kind === "delete-flow"
-              ? "This is the flow as it was before permanent deletion. It is no longer in the catalog."
-              : "This records the flow when the result was accepted; the catalog shows its current state."}
-            {" "}Recorded status: {entry.result.flow.status === "active" ? "Active" : "Outdated"}.
-            {" "}{entry.result.flow.citations.length} retained source citation(s).
+              ? "Snapshot before deletion"
+              : "Snapshot at acceptance"}
+            {" · "}{entry.result.flow.status === "active" ? "Active" : "Outdated"}
+            {" · "}{entry.result.flow.citations.length} {entry.result.flow.citations.length === 1 ? "source" : "sources"}
           </p>
           <details><summary>Accepted result details</summary><pre>{JSON.stringify(entry.result, null, 2)}</pre></details>
         </> : <pre>{entry.text}</pre>}
@@ -148,8 +147,8 @@ function Entry({ entry }: { entry: ChatEntry }) {
         </summary>
         <p className="small muted">
           {entry.compaction
-            ? "These earlier exchanges were summarized for later requests. The original conversation is retained, and this summary was given to the model."
-            : "The summary request has not completed successfully. Its available response and usage are retained; working context has not been replaced."}
+            ? "Summary sent to the model. Original messages are kept."
+            : "Compaction incomplete. Working context is unchanged."}
         </p>
         <pre>{entry.text}</pre>
       </details>
@@ -200,7 +199,7 @@ function ExecutionOutcome({ execution, session }: { execution: AgentExecution; s
       </details>
       {retriable && <button disabled={session.agentBlocked}
         onClick={() => session.retryExecution(execution.id)}>
-        {execution.scan === null ? "Retry as new attempt" : "Retry as a new Scan"}</button>}
+        {execution.scan === null ? "Retry as new attempt" : `Start a new ${execution.scan.effort} Scan`}</button>}
     </div>
   );
 }

@@ -36,16 +36,16 @@ export function EvidenceReading({ flow, reading }: { flow: UserFlow; reading: Ev
 function describeReading(freshness: EvidenceFreshness | null, checking: boolean): string {
   if (freshness === null) {
     return checking
-      ? "Reading these locations in the Repository…"
-      : "These locations have not been read yet.";
+      ? "Checking sources…"
+      : "Sources not checked yet.";
   }
   if (!freshness.repositoryAvailable) {
-    return "The Repository could not be read at its recorded location, so none of these locations could be checked. The evidence and this flow's status are unchanged.";
+    return "Repository unavailable. Restore access or Relink to check sources.";
   }
   const when = describeWhen(freshness.checkedAt);
-  const read = when === "" ? "when last read" : `when read ${when}`;
+  const read = when === "" ? "at last check" : `as of ${when}`;
   const changed = freshness.citations.filter((entry) => entry.state !== "unchanged").length;
   return changed === 0
-    ? `Every cited file was unchanged ${read}.`
-    : `${changed} of ${freshness.citations.length} cited locations were changed or unreadable ${read}. This flow's status is unaffected.`;
+    ? `Sources unchanged ${read}.`
+    : `${changed} of ${freshness.citations.length} sources changed or unavailable ${read}. Flow status unchanged.`;
 }

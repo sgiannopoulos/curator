@@ -28,16 +28,12 @@ export function RemoveWorkspaceDialog({ workspace, session, onClose }: {
           });
         }}>{submitting ? "Deleting…" : "Delete Workspace permanently"}</button>
       </>}>
-      <p>This permanently deletes this Workspace's current User Flows and Source Citations,
-        entire Agent Chat, Scan history, associated Agent Executions and results,
-        and application-owned working files.</p>
-      <p style={{ marginTop: 12 }}>There is no trash, undo, or automatic restoration.
-        Opening this Repository again creates a new, empty Workspace.</p>
-      <p style={{ marginTop: 12 }}>The Repository, application-wide configuration, and
-        other Workspaces are kept.</p>
-      <p className="small mono" style={{ marginTop: 12 }}>{workspace.repositoryLocator}</p>
+      <p>Permanently delete this Workspace and all its data, including User Flows,
+        Source Citations, Agent Chat, and Scan history. This cannot be undone.</p>
+      <p>Repository files are kept. Opening this Repository again creates an empty Workspace.</p>
+      <p className="small mono">{workspace.repositoryLocator}</p>
       {session.chat?.executions.some((execution) => execution.status === "running") &&
-        <p className="small muted">Stop the active Agent Execution or wait for it to finish before deleting.</p>}
+        <p className="small muted">Stop the agent or wait for it to finish before deleting.</p>}
       {failed && session.notice && <Notice error={session.notice} />}
     </Dialog>
   );

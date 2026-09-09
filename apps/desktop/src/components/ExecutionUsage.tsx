@@ -16,11 +16,10 @@ export function ExecutionUsage({ execution }: { execution: AgentExecution }) {
       <dt>Usage and cost</dt>
       <dd>
         {execution.usage === null ? "Unavailable"
-          : execution.usageComplete ? "Provider-reported numbers, added across this attempt's requests"
+          : execution.usageComplete ? "Provider totals"
             : "Incomplete provider totals"}
         {execution.usage !== null && <>
           <pre>{JSON.stringify(execution.usage, null, 2)}</pre>
-          <p className="small muted">Only numeric fields add up. What each request reported on its own is in its complete payloads.</p>
         </>}
       </dd>
     </>

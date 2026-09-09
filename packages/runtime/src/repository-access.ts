@@ -481,7 +481,7 @@ export async function inspectCitationFreshness(
       citations: citations.map((citation) => ({
         citationId: citation.id,
         state: "unavailable" as const,
-        detail: `The Repository is not readable at ${repositoryLocator}, so this location cannot be checked.`,
+        detail: `Repository unreadable at ${repositoryLocator}.`,
       })),
     };
   }
@@ -497,13 +497,13 @@ export async function inspectCitationFreshness(
       reports.push({
         citationId: citation.id,
         state: "unavailable",
-        detail: `Lines ${citation.startLine}-${citation.endLine} are no longer in this file, which now has ${source.lines} lines.`,
+        detail: `Lines ${citation.startLine}-${citation.endLine} unavailable; file now has ${source.lines} lines.`,
       });
       continue;
     }
     reports.push(fingerprint(source.contents) === citation.contentFingerprint
-      ? { citationId: citation.id, state: "unchanged", detail: "This file is unchanged since this evidence was accepted." }
-      : { citationId: citation.id, state: "stale", detail: "This file has changed since this evidence was accepted, so the cited lines may no longer say what was reviewed." });
+      ? { citationId: citation.id, state: "unchanged", detail: "File unchanged since review." }
+      : { citationId: citation.id, state: "stale", detail: "File changed since review. Cited lines may differ." });
   }
   return { repositoryAvailable: true, citations: reports };
 }

@@ -14,9 +14,7 @@ export function Citations({ flow, reading }: { flow: UserFlow; reading: Evidence
   if (flow.citations.length === 0) {
     return (
       <p className="small muted">
-        {flow.createdBy === "manual"
-          ? "This flow was added by hand and has no Source Citations."
-          : "This flow has no Source Citations."}
+        No Source Citations.
       </p>
     );
   }

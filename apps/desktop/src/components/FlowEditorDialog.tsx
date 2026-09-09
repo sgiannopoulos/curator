@@ -40,7 +40,6 @@ export function FlowEditorDialog({
   return (
     <Dialog
       title={flow === null ? "Add User Flow" : "Edit User Flow"}
-      subtitle="Describe user actions and expected outcomes in your own words."
       open={open}
       onClose={onClose}
       footer={
@@ -66,7 +65,7 @@ export function FlowEditorDialog({
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="A returning customer applies a promo code at checkout"
+            placeholder="Apply a promo code"
           />
         </label>
         <label>
@@ -75,14 +74,9 @@ export function FlowEditorDialog({
             rows={7}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="What the person does, and what they expect to happen."
+            placeholder="User actions and expected outcomes"
           />
         </label>
-        <p className="small muted">
-          {flow === null
-            ? "A flow you write yourself starts Active and needs no Source Citations."
-            : "Save keeps this flow's identity, its Active or Outdated status, and any Source Citations already attached. Those citations do not certify that your edited wording has been reviewed."}
-        </p>
       </div>
     </Dialog>
   );

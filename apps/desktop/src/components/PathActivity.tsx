@@ -29,11 +29,6 @@ export function PathActivity({ execution, activity }: { execution: AgentExecutio
       <summary>
         Path records · {activity.considered} considered · {activity.read} read · {activity.excluded} excluded
       </summary>
-      <p className="small muted">
-        Considered means a path was surfaced and weighed for relevance, Read means some of its
-        contents reached the agent, and Excluded means it was explicitly skipped. A path nobody
-        opened is none of these.
-      </p>
       {activity.exclusions.length > 0 && (
         <>
           <ul className="chat-exclusions">
@@ -46,13 +41,13 @@ export function PathActivity({ execution, activity }: { execution: AgentExecutio
           </ul>
           {activity.excluded > activity.exclusions.length && (
             <p className="small muted">
-              The first {activity.exclusions.length} of {activity.excluded}; the rest are below.
+              Showing {activity.exclusions.length} of {activity.excluded}. Expand recorded paths for all.
             </p>
           )}
         </>
       )}
       <details onToggle={(event) => setExpanded(event.currentTarget.open)}>
-        <summary>Every recorded path</summary>
+        <summary>Recorded paths</summary>
         {error ? <p>{error}</p> : paths === null ? <p>Loading…</p> : (
           <pre>{paths.map((path) => `${path.kind}\t${path.path}${path.count === null ? "" : ` (${path.count} grouped paths)`}${path.reason === null ? "" : ` — ${path.reason}`}`).join("\n")}</pre>
         )}

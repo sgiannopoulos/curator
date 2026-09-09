@@ -45,7 +45,7 @@ export function FlowList({
       <div className="catalog-content" id="flow-list-content" hidden={minimized}>
       <div className="catalog-list">
         {flows.length === 0 && (
-          <p className="preview-note">No User Flows yet. Add one to get started.</p>
+          <p className="preview-note">No User Flows yet.</p>
         )}
         {GROUPS.map(({ status, label }) => {
           const group = flows.filter((flow) => flow.status === status);

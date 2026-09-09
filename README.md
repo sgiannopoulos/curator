@@ -196,12 +196,13 @@ and nothing is trimmed to make history smaller. Reasoning and compaction stay
 collapsed but readable, and an entry checkpointed mid-stream stays marked
 unfinished.
 
-Accepted results are shown as they committed, including results for flows that
+Accepted result cards start collapsed in Agent Chat. Expand a card to inspect
+its recorded description and details. Results are shown as they committed, including results for flows that
 have since been deleted or re-cited. That is history, not a recovery path: it
 cannot restore a deleted User Flow, put back replaced evidence, or stop a later
 Scan from finding the same behavior again under a new identity.
 
-**Retry this Scan** starts a new Scan at the same effort, linked to the attempt
+**Start a new [effort] Scan** starts a new Scan at the same effort, linked to the attempt
 it came from, which stays exactly as it ended. It is a new Agent Execution and a
 new Scan Record: it captures the catalog as it is now, runs the Review Pass over
 it, and uses the current application-wide configuration. Nothing resumes from a

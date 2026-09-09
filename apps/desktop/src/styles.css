@@ -141,8 +141,7 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
   letter-spacing: -0.5px;
   text-wrap: pretty;
 }
-.welcome p { font-size: 14px; color: #6b5c44; margin-top: 12px; }
-.welcome-actions { display: flex; justify-content: center; gap: 9px; margin-top: 26px; }
+.welcome-actions { display: flex; gap: 9px; margin-top: 26px; }
 .welcome-actions button { padding: 10px 17px; font-size: 13px; border-radius: 8px; }
 
 .recents {
@@ -351,7 +350,6 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
   max-width: 72ch;
 }
 .outdated-note button { margin-top: 12px; }
-.evidence-note { margin-top: 26px; font-size: 12px; color: var(--faint); max-width: 72ch; }
 
 /* Inspector */
 .inspector {
@@ -409,6 +407,7 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
   padding: 7px 9px;
   font-weight: 400;
 }
+.stack { display: grid; gap: 14px; }
 .stack label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
 .stack input,
 .stack textarea {
@@ -476,9 +475,7 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 .freshness.unavailable { color: var(--outdated-text); background: #f7e3d8; }
 .citation p.citation-freshness { color: var(--faint); font-style: italic; }
 .evidence-reading {
-  margin-top: 14px;
   padding-top: 13px;
-  border-top: 1px solid var(--line);
   display: grid;
   justify-items: start;
   gap: 9px;
@@ -486,7 +483,7 @@ button:hover:not(:disabled) { border-color: var(--tan); background: #f5edd9; }
 
 
 .scan-controls {
-  flex: none; display: flex; flex-direction: column; gap: 6px;
+  flex: none;
   padding: 12px 26px; border-top: 1px solid var(--line);
 }
 .scan-actions { display: flex; align-items: center; gap: 8px; }

@@ -44,11 +44,10 @@ export function RelinkDialog({ workspace, session, onClose }: {
               if (committed) onClose();
               else setFailed(true);
             });
-          }}>Confirm same Repository and Relink</button>
+          }}>Confirm and Relink</button>
       </>}>
-      <p>Choose the new location, then confirm it is the same Repository.
-        This Workspace keeps its User Flows, Source Citations, Agent Chat, and Scan history.</p>
-      <dl className="details">
+      <p>Choose the new location of the same Repository. Workspace data is kept.</p>
+      <dl className="details" style={{ marginTop: 14 }}>
         <dt>Current location</dt><dd className="mono">{workspace.repositoryLocator}</dd>
         <dt>Replacement</dt><dd className="mono">{locator ?? "No folder selected"}</dd>
       </dl>
@@ -56,8 +55,7 @@ export function RelinkDialog({ workspace, session, onClose }: {
         {choosing ? "Choosing…" : locator === null ? "Choose folder…" : "Choose another folder…"}
       </button>
       <p className="small muted" style={{ marginTop: 14 }}>
-        If the selected location already belongs to another Workspace, Curator opens
-        that Workspace and leaves this one unchanged. Workspaces are never merged.
+        A folder linked to another Workspace opens that Workspace without merging.
       </p>
       {error && <Notice error={error} />}
     </Dialog>

@@ -32,13 +32,10 @@ export function RemoveFlowDialog({
       }
     >
       <p>
-        This deletes the flow and its Source Citations from the catalog for good.
-        There is no undo, no trash, and no way to restore it.
+        Permanently delete this flow and its Source Citations. This cannot be undone.
       </p>
-      <p style={{ marginTop: 12 }}>
-        Records that already mention it stay as they are, but they cannot bring it
-        back. A later Scan that finds this behavior again will create a new User
-        Flow with a new identity, so removing it is not a rule that keeps it out.
+      <p>
+        A later Scan may rediscover this behavior as a new User Flow.
       </p>
     </Dialog>
   );

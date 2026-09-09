@@ -26,18 +26,11 @@ export function Inspector({
             <h3 className="label">Run history</h3>
             <span className="future-tag">Preview</span>
           </div>
-          <p className="small muted">
-            Test runs, timings, and inferred assertions will appear here when test
-            execution is added. Curator has not run anything.
-          </p>
+          <p className="small muted">Not available yet.</p>
         </section>
         <section className="inspector-section">
           <h3 className="label">User Flow</h3>
           <StatusBadge status={flow.status} />
-          <p className="small muted">
-            This status comes from source evidence and your own judgment, separately
-            from anything the testing previews will show.
-          </p>
         </section>
       </aside>
     );
@@ -49,19 +42,10 @@ export function Inspector({
         <h3 className="label">Source Citations</h3>
         <Citations flow={flow} reading={reading} />
         <EvidenceReading flow={flow} reading={reading} />
-        <p className="small muted">
-          Citations support the agent's judgment. Editing the wording yourself does
-          not establish a new source review, and it does not change what these
-          locations say.
-        </p>
       </section>
       <section className="inspector-section">
         <h3 className="label">User Flow</h3>
         <StatusBadge status={flow.status} />
-        <p className="small muted">
-          Stale or unreadable evidence, and future test results, do not change this
-          status on their own.
-        </p>
       </section>
     </aside>
   );

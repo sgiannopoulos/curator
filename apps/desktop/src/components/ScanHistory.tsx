@@ -41,18 +41,13 @@ export function ScanHistory({ workspaceId, session, onOpenChat, onClose }: {
   return (
     <article className="document">
       <div className="row between" style={{ marginBottom: 12 }}>
-        <h3>Workspace Scan history</h3>
+        <h3>Scan history</h3>
         <button onClick={onClose}>Close history</button>
       </div>
-      <p className="small muted" style={{ marginBottom: 22 }}>
-        Every Scan of this Repository, kept until the Workspace is deleted. Curator
-        analyzes source rather than running the product, so this is not test-run
-        history, and no attempt here is resumed by opening it.
-      </p>
       {error !== null && <p>{error}</p>}
       {records === null && error === null && <p className="small muted">Reading Scan history…</p>}
       {records?.length === 0 && (
-        <p className="evidence-note">No Scans yet. Choose a Scanning Effort below and start one.</p>
+        <p className="small muted">No Scans yet.</p>
       )}
       {records?.map((record) => (
         <ScanRecordItem key={record.execution.id} record={record} session={session}
@@ -78,12 +73,10 @@ function ScanRecordItem({ record, session, onOpenChat }: {
       <details>
         <summary>Accepted results · {results.length}</summary>
         <p className="small muted">
-          What each result committed when it was accepted. The catalog is the current
-          state: a flow deleted since is gone, and history cannot bring it back or
-          stop a later Scan from finding that behavior again under a new identity.
+          Results at acceptance.
         </p>
         {results.length === 0
-          ? <p className="small muted">None accepted in this attempt.</p>
+          ? <p className="small muted">No accepted results.</p>
           : <ul className="chat-exclusions">
               {results.map((result) => (
                 <li key={result.outcome.eventId}>
@@ -111,13 +104,9 @@ function ScanRecordItem({ record, session, onOpenChat }: {
           Open in Agent Chat · {record.entryCount} {record.entryCount === 1 ? "entry" : "entries"}
         </button>
         <button disabled={session.agentBlocked} onClick={() => session.retryExecution(execution.id)}>
-          Retry this Scan
+          Start a new {scan.effort} Scan
         </button>
       </div>
-      <p className="small muted" style={{ marginTop: 8 }}>
-        Retry starts a new Scan at {scan.effort} effort against the catalog and
-        configuration as they are now. This attempt stays as it ended; nothing resumes.
-      </p>
     </div>
   );
 }

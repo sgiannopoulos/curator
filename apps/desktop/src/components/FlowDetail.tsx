@@ -96,46 +96,29 @@ export function FlowDetail({
               {flow.status === "outdated" && (
                 <div className="outdated-note">
                   <p>
-                    Evidence indicated this behavior is no longer current. Rewording it
-                    leaves it Outdated; marking it Active is your own judgment.
+                    Source evidence no longer supports this flow. Mark Active if the behavior is current.
                   </p>
                   <button onClick={onReactivate} disabled={working}>
                     Mark Active
                   </button>
                 </div>
               )}
-              <p className="evidence-note">
-                Edits you make keep this flow's Source Citations and the file contents
-                recorded with them. Those citations do not certify that the edited text
-                has been reviewed, and editing does not make them stale.
-              </p>
             </article>
           )}
 
           {tab === "sources" && (
             <article className="document">
               <h3>Source Citations</h3>
-              <p className="small muted" style={{ marginBottom: 22 }}>
-                Evidence supporting the agent's judgment, read against the Repository
-                as it is now. Source that has changed or cannot be read does not
-                change this flow's status.
-              </p>
               <Citations flow={flow} reading={reading} />
             </article>
           )}
 
           {tab === "steps" && (
-            <FuturePreview
-              subject="Test steps"
-              body="Executable steps will appear here when test execution is added. They are separate from the free-text description, which is what Curator curates today."
-            />
+            <FuturePreview subject="Test steps" />
           )}
 
           {tab === "screenshots" && (
-            <FuturePreview
-              subject="Screenshots from a test run"
-              body="Screenshots will appear here when test execution is added. Curator does not run the product or capture screenshots."
-            />
+            <FuturePreview subject="Screenshots" />
           )}
         </section>
         <Inspector flow={flow} tab={tab} reading={reading} />
@@ -144,12 +127,12 @@ export function FlowDetail({
   );
 }
 
-function FuturePreview({ subject, body }: { subject: string; body: string }) {
+function FuturePreview({ subject }: { subject: string }) {
   return (
     <div className="empty">
-      <span className="label">Future testing feature</span>
+      <span className="label">Preview</span>
       <h2>{subject}</h2>
-      <p>{body}</p>
+      <p>Not available yet.</p>
     </div>
   );
 }
